@@ -48,6 +48,8 @@ struct DisplayNameModalView: View {
                 Spacer()
             }
             .padding(.top, 32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.appBackground)
             .navigationTitle("Set Display Name")
             .navigationBarTitleDisplayMode(.inline)
         }

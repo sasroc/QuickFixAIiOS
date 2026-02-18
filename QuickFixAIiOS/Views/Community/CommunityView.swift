@@ -88,6 +88,7 @@ struct CommunityView: View {
                         .padding(.top, 12)
                         .padding(.bottom, 32)
                     }
+                    .background(Color.appBackground)
                 }
             }
             .navigationTitle("Community")
@@ -122,6 +123,7 @@ struct CommunityView: View {
                 Text("This post will be permanently removed from the community.")
             }
         }
+        .background(Color.appBackground)
     }
 
     private var emptyState: some View {

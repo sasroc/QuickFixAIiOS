@@ -22,6 +22,7 @@ struct TermsView: View {
                 }
                 .padding()
             }
+            .background(Color.appBackground)
             .navigationTitle("Terms of Service")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

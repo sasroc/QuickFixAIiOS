@@ -22,6 +22,7 @@ struct PrivacyView: View {
                 }
                 .padding()
             }
+            .background(Color.appBackground)
             .navigationTitle("Privacy Policy")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

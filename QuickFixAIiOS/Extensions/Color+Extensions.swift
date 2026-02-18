@@ -16,8 +16,12 @@ extension Color {
 
     // MARK: - Backgrounds
 
-    /// Page background — --bg-primary light: #f3f4f6
-    static let appBackground   = Color(red: 0.953, green: 0.957, blue: 0.965)
+    /// Page background — --bg-primary light: #f3f4f6 / dark: #111827
+    static let appBackground = Color(UIColor { tc in
+        tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.067, green: 0.094, blue: 0.153, alpha: 1) // #111827
+            : UIColor(red: 0.953, green: 0.957, blue: 0.965, alpha: 1) // #f3f4f6
+    })
 
     /// Card background — --card-bg: #ffffff / dark #1f2937
     static let cardBackground  = Color(UIColor { tc in

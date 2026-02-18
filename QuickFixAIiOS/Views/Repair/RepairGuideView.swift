@@ -137,6 +137,7 @@ struct RepairGuideView: View {
             }
             .padding(.top, 16)
         }
+        .background(Color.appBackground)
     }
 
     // MARK: - Step Card

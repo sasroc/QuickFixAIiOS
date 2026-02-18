@@ -21,6 +21,7 @@ struct LandingView: View {
                 footerSection
             }
         }
+        .background(Color.appBackground)
         .ignoresSafeArea(edges: .top)
         .sheet(isPresented: $showAuth)    { AuthView() }
         .sheet(isPresented: $showPricing) { PricingView(startTrial: false) }

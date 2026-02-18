@@ -132,6 +132,7 @@ struct InputFormView: View {
                 .padding(.bottom, 40)
             }
         }
+        .background(Color.appBackground)
         .onChange(of: selectedPhoto) { _, item in
             Task {
                 if let data = try? await item?.loadTransferable(type: Data.self),

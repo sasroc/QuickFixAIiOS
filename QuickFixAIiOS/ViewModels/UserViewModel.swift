@@ -8,6 +8,7 @@ final class UserViewModel {
 
     // MARK: - State
     var profile: UserProfile? = nil
+    var profileLoaded = false   // true after first Firestore response (doc may or may not exist)
     var isLoading = false
     var errorMessage: String? = nil
 
@@ -26,8 +27,9 @@ final class UserViewModel {
         listener = Firestore.db.collection("users").document(uid)
             .addSnapshotListener { [weak self] snap, _ in
                 Task { @MainActor [weak self] in
-                    guard let data = snap?.data() else { return }
-                    self?.profile = UserProfile(uid: uid, data: data)
+                    guard let self else { return }
+                    self.profile = snap?.data().map { UserProfile(uid: uid, data: $0) }
+                    self.profileLoaded = true
                 }
             }
     }
@@ -36,6 +38,7 @@ final class UserViewModel {
         listener?.remove()
         listener = nil
         profile = nil
+        profileLoaded = false
     }
 
     // MARK: - Update display name (delegated to AuthViewModel, but exposed here too)

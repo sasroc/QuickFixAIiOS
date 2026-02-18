@@ -195,6 +195,7 @@ struct AuthView: View {
                     Spacer(minLength: 40)
                 }
             }
+            .background(Color.appBackground)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

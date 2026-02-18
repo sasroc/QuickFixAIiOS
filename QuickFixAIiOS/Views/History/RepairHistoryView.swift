@@ -22,6 +22,7 @@ struct RepairHistoryView: View {
             .navigationTitle("Repair History")
             .navigationBarTitleDisplayMode(.large)
         }
+        .background(Color.appBackground)
         .alert("Delete Repair?", isPresented: $showDeleteAlert) {
             Button("Delete", role: .destructive) {
                 if let target = deleteTarget {
@@ -82,6 +83,7 @@ struct RepairHistoryView: View {
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
+        .background(Color.appBackground)
     }
 
     private var emptyState: some View {

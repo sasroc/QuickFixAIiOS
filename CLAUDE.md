@@ -43,9 +43,9 @@ Open `QuickFixAIiOS.xcodeproj` in Xcode for day-to-day development. **Never hand
 **Entry point:** `QuickFixAIiOSApp.swift` configures Firebase, creates all ViewModels as `@State`, injects them via `.environment()`, and starts/stops Firestore listeners when auth state changes.
 
 **Navigation:**
-- Unauthenticated → `LandingView` (full marketing page)
-- Authenticated → `MainTabView` (4 tabs: Repair, History, Community, Account)
-- Stripe checkout opens in `SFSafariViewController`; payment success detected via `quickfixai://payment-success` deep link
+- `RootView.swift` is the navigation switch: `authVM.isSignedIn` → `MainTabView`, otherwise → `LandingView` (full marketing page), both with opacity transitions
+- `MainTabView` — 4 tabs: Repair, History, Community, Account
+- Stripe checkout opens in `SFSafariViewController`; payment success detected via `quickfixai://payment-success` deep link (URL scheme registered in `project.yml`)
 
 **ViewModels** (all `@MainActor @Observable`):
 | ViewModel | Responsibility |
@@ -57,10 +57,14 @@ Open `QuickFixAIiOS.xcodeproj` in Xcode for day-to-day development. **Never hand
 | `CommunityViewModel` | Real-time listener on `community_posts/`, likes, create/delete posts |
 
 **Key Services:**
-- `APIService` — async/await HTTP client; attaches Firebase JWT Bearer token automatically
-- `FirestoreService.swift` — only contains the `Timestamp: @retroactive FirestoreTimestampProtocol` conformance
+- `APIService` (singleton) — async/await HTTP client with methods `post<T>()`, `get<T>()`, `patch<T>()`, `delete()`, `postMultipart()`. Attaches Firebase JWT Bearer token automatically; `requiresAuth: true` fails without token, `false` attaches opportunistically. 90s timeout.
+- `FirestoreService.swift` — only contains `Timestamp: @retroactive FirestoreTimestampProtocol` conformance, bridging Firebase timestamps to Models without importing Firebase there.
+
+**Firestore listener lifecycle:** `App.onChange(authVM.firebaseUser)` calls `userVM.startListening(uid)`, `historyVM.startListening()`, `communityVM.startListening()` on sign-in and their corresponding `stopListening()` on sign-out. Use `nonisolated(unsafe) var listenerHandle` for `ListenerRegistration` stored in `@MainActor` classes so `deinit` can remove them.
 
 **Firestore collections:** `users/{uid}`, `repairs/{repairId}`, `community_posts/{postId}`, `feedback/{feedbackId}`
+
+**Image handling:** Compressed to 800px max width, 0.7 JPEG quality before sending. Repair images are sent to the backend as `data:image/jpeg;base64,...` data URIs. Community post before/after images are stored as base64 strings directly in Firestore (no Firebase Storage).
 
 ## Backend API (existing Railway deployment)
 
@@ -101,6 +105,14 @@ Colors are defined in `Extensions/Color+Extensions.swift` and match the webapp C
 - Always use `Color.brand` explicitly (not shorthand `.brand`) in `foregroundStyle()` — Swift cannot infer the type
 - `Color.cardBackground` / `Color.inputBackground` use `UIColor` adaptive initializers (requires `import UIKit` — SourceKit may show a false-positive "No such module UIKit" warning that does not affect compilation)
 - `Color.brandGradient` (blue→teal) for hero sections; `Color.ctaGradient` for CTA buttons
+
+## View Utilities (`Extensions/View+Extensions.swift`)
+
+Reusable modifiers to keep views consistent:
+- `.cardStyle()` — padding + `cardBackground` + `cornerRadius(12)`
+- `.primaryButtonStyle()` — full-width, `brand` color, 14pt vertical padding
+- `.shake(trigger:)` — 8pt shake animation for validation errors
+- `.if(condition) { }` — conditional ViewBuilder modifier
 
 ## SPM Dependencies
 

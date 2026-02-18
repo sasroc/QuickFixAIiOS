@@ -42,6 +42,7 @@ struct AccountSettingsView: View {
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.large)
         }
+        .background(Color.appBackground)
         .sheet(isPresented: $showPricing) {
             PricingView(startTrial: profile?.isTrialEligible ?? false)
         }

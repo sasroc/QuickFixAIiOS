@@ -123,6 +123,8 @@ struct FeedbackModalView: View {
                 .padding(.horizontal, 40)
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.appBackground)
     }
 
     private func submit() async {

@@ -78,5 +78,6 @@ struct RepairView: View {
                 Text(repairVM.errorMessage ?? "")
             }
         }
+        .background(Color.appBackground)
     }
 }

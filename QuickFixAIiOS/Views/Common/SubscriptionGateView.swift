@@ -57,5 +57,7 @@ struct SubscriptionGateView<Content: View>: View {
 
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.appBackground)
     }
 }
