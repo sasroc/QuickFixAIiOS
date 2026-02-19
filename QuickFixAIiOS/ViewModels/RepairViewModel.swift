@@ -68,17 +68,21 @@ final class RepairViewModel {
                 timestamp: Date()
             )
 
-            // Save to Firestore if signed in
-            if let uid = Auth.auth().currentUser?.uid {
-                let docRef = try await Firestore.db.collection("repairs").addDocument(
-                    data: guide.firestoreData.merging([
-                        "timestamp": FieldValue.serverTimestamp()
-                    ]) { _, new in new }
-                )
-                guide.id = docRef.documentID
-            }
-
             currentGuide = guide
+
+            // Save to Firestore — timestamp is a required field per security rules
+            if let _ = Auth.auth().currentUser?.uid {
+                do {
+                    let docRef = try await Firestore.db.collection("repairs").addDocument(
+                        data: guide.firestoreData.merging(
+                            ["timestamp": FieldValue.serverTimestamp()]
+                        ) { _, new in new }
+                    )
+                    currentGuide?.id = docRef.documentID
+                } catch {
+                    print("[RepairVM] Firestore save failed: \(error.localizedDescription)")
+                }
+            }
 
         } catch {
             errorMessage = (error as? APIError)?.errorDescription ?? error.localizedDescription

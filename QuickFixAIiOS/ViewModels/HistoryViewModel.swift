@@ -22,7 +22,6 @@ final class HistoryViewModel {
 
         listener = Firestore.db.collection("repairs")
             .whereField("userId", isEqualTo: uid)
-            .order(by: "timestamp", descending: true)
             .addSnapshotListener { [weak self] snap, error in
                 Task { @MainActor [weak self] in
                     self?.isLoading = false
@@ -30,9 +29,12 @@ final class HistoryViewModel {
                         self?.errorMessage = error.localizedDescription
                         return
                     }
-                    self?.repairs = snap?.documents.compactMap {
+                    // Sort client-side — avoids needing a composite Firestore index
+                    self?.repairs = (snap?.documents.compactMap {
                         RepairGuide(id: $0.documentID, data: $0.data())
-                    } ?? []
+                    } ?? []).sorted {
+                        ($0.timestamp ?? .distantPast) > ($1.timestamp ?? .distantPast)
+                    }
                 }
             }
     }

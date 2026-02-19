@@ -102,14 +102,14 @@ struct RepairGuide: Identifiable, Equatable {
             "title":         title,
             "tools":         tools,
             "materials":     materials,
-            "estimatedTime": estimatedTime
+            // Security rules require estimatedTime as a String (matches web: "45 minutes")
+            "estimatedTime": "\(estimatedTime) minutes"
         ]
-        d["steps"] = steps.map { s -> [String: Any?] in
-            ["description": s.description, "image": s.image]
-        }
-        if let ia = imageAnalysis  { d["imageAnalysis"]   = ia }
+        // Steps: only write description — image field is iOS-only and not in schema
+        d["steps"] = steps.map { ["description": $0.description] }
+        if let ia = imageAnalysis   { d["imageAnalysis"]   = ia }
         if let cs = confidenceScore { d["confidenceScore"] = cs }
-        if let ib = imageBase64    { d["imageBase64"]     = ib }
+        // imageBase64 intentionally omitted — not in Firestore security rule schema
         return d
     }
 }

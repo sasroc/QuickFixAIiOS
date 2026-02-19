@@ -13,6 +13,8 @@ struct RepairHistoryView: View {
             Group {
                 if historyVM.isLoading {
                     ProgressView("Loading history…")
+                } else if let error = historyVM.errorMessage {
+                    errorState(message: error)
                 } else if historyVM.repairs.isEmpty {
                     emptyState
                 } else {
@@ -84,6 +86,21 @@ struct RepairHistoryView: View {
             .padding(.bottom, 32)
         }
         .background(Color.appBackground)
+    }
+
+    private func errorState(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.lock.fill")
+                .font(.system(size: 56))
+                .foregroundStyle(.orange)
+            Text("Couldn't Load History")
+                .font(.title3).fontWeight(.semibold)
+            Text(message)
+                .font(.subheadline).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var emptyState: some View {
