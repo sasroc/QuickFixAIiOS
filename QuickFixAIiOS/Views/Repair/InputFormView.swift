@@ -6,6 +6,7 @@ import AVFoundation
 struct InputFormView: View {
     @Environment(RepairViewModel.self) private var repairVM
 
+    @FocusState private var isFocused: Bool
     @State private var description   = ""
     @State private var selectedPhoto: PhotosPickerItem? = nil
     @State private var selectedImage: UIImage? = nil
@@ -43,6 +44,7 @@ struct InputFormView: View {
                         TextEditor(text: $description)
                             .frame(minHeight: 120)
                             .padding(8)
+                            .focused($isFocused)
                     }
                     .background(Color.inputBackground)
                     .cornerRadius(10)
@@ -132,6 +134,8 @@ struct InputFormView: View {
                 .padding(.bottom, 40)
             }
         }
+        .scrollDismissesKeyboard(.interactively)
+        .simultaneousGesture(TapGesture().onEnded { isFocused = false })
         .background(Color.appBackground)
         .onChange(of: selectedPhoto) { _, item in
             Task {
