@@ -1,4 +1,5 @@
 import SwiftUI
+import GoogleSignIn
 import GoogleSignInSwift
 
 struct AuthView: View {
@@ -175,10 +176,9 @@ struct AuthView: View {
                     .padding(.horizontal)
 
                     // Google Sign-In
-                    GoogleSignInButton(scheme: .light, style: .wide, state: .normal) {
+                    GoogleSignInCustomButton {
                         Task { await authVM.signInWithGoogle() }
                     }
-                    .frame(height: 50)
                     .padding(.horizontal)
 
                     // Forgot password
@@ -232,5 +232,61 @@ struct AuthView: View {
             authVM.errorMessage = nil
             // Show a success alert
         }
+    }
+}
+
+// MARK: - Custom Google Sign-In button
+
+/// Loads the Google G logo directly from the GoogleSignIn SDK bundle and renders
+/// a button that matches Google's branding while giving us precise layout control.
+private struct GoogleSignInCustomButton: View {
+    let action: () -> Void
+
+    /// The same logo the SDK uses, loaded from its resource bundle.
+    private var googleLogo: Image? {
+        guard let bundle = googleSignInBundle(),
+              let url = bundle.url(forResource: "google", withExtension: "png"),
+              let uiImage = UIImage(contentsOfFile: url.path) else {
+            return nil
+        }
+        return Image(uiImage: uiImage)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                if let logo = googleLogo {
+                    logo
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
+                        .offset(y: -5)
+                }
+                Text("Sign in with Google")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color(white: 0.25))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
+            .shadow(color: .gray.opacity(0.4), radius: 2, x: 0, y: 2)
+        }
+    }
+
+    private func googleSignInBundle() -> Bundle? {
+        let bundleName = "GoogleSignIn_GoogleSignIn"
+        if let mainPath = Bundle.main.path(forResource: bundleName, ofType: "bundle") {
+            return Bundle(path: mainPath)
+        }
+        let classBundle = Bundle(for: GIDSignIn.self)
+        if let classPath = classBundle.path(forResource: bundleName, ofType: "bundle") {
+            return Bundle(path: classPath)
+        }
+        return nil
     }
 }

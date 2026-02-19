@@ -22,9 +22,10 @@ struct AuthScreen: View {
 
                 // Logo + branding
                 VStack(spacing: 18) {
-                    Image(systemName: "wrench.and.screwdriver.fill")
-                        .font(.system(size: 80, weight: .medium))
-                        .foregroundStyle(.white)
+                    Image("AppLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 180, height: 120)
                         .shadow(color: .black.opacity(0.2), radius: 12, y: 6)
 
                     HStack(spacing: 0) {
@@ -99,14 +100,34 @@ struct AuthScreen: View {
     }
 }
 
-/// Renders the real Google "G" logo via GIDSignInButton (.iconOnly, non-interactive).
-private struct GoogleGIcon: UIViewRepresentable {
-    func makeUIView(context: Context) -> GIDSignInButton {
-        let btn = GIDSignInButton()
-        btn.style = .iconOnly
-        btn.colorScheme = .light
-        btn.isUserInteractionEnabled = false
-        return btn
+/// Renders the Google "G" logo by loading the PNG directly from the SDK bundle.
+/// Pure SwiftUI — offset/padding modifiers work correctly.
+private struct GoogleGIcon: View {
+    var body: some View {
+        if let img = googleLogoImage() {
+            Image(uiImage: img)
+                .resizable()
+                .scaledToFit()
+                .offset(y: -2)
+        }
     }
-    func updateUIView(_ uiView: GIDSignInButton, context: Context) {}
+
+    private func googleLogoImage() -> UIImage? {
+        let bundleName = "GoogleSignIn_GoogleSignIn"
+        let resourceBundle: Bundle?
+        if let path = Bundle.main.path(forResource: bundleName, ofType: "bundle") {
+            resourceBundle = Bundle(path: path)
+        } else {
+            let fb = Bundle(for: GIDSignIn.self)
+            if let path = fb.path(forResource: bundleName, ofType: "bundle") {
+                resourceBundle = Bundle(path: path)
+            } else {
+                resourceBundle = nil
+            }
+        }
+        guard let url = resourceBundle?.url(forResource: "google", withExtension: "png") else {
+            return nil
+        }
+        return UIImage(contentsOfFile: url.path)
+    }
 }
