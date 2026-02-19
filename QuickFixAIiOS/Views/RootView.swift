@@ -5,37 +5,12 @@ struct RootView: View {
     @Environment(UserViewModel.self)  private var userVM
 
     @State private var paymentSucceeded = false
-    @State private var showFeedback     = false
 
     var body: some View {
         ZStack {
             content
                 .animation(.easeInOut(duration: 0.3), value: authVM.isSignedIn)
                 .animation(.easeInOut(duration: 0.3), value: userVM.hasActiveAccess)
-
-            // Floating feedback button (only when using the full app)
-            if authVM.isSignedIn && userVM.hasActiveAccess {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Button {
-                            showFeedback = true
-                        } label: {
-                            Image(systemName: "bubble.left.and.bubble.right.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(.white)
-                                .padding(14)
-                                .background(Color.brand)
-                                .clipShape(Circle())
-                                .shadow(color: Color.brand.opacity(0.4), radius: 8, y: 3)
-                        }
-                        .padding(.leading, 20)
-                        .padding(.bottom, 90)
-                        Spacer()
-                    }
-                }
-                .transition(.scale.combined(with: .opacity))
-            }
         }
         .onOpenURL { url in
             if url.scheme == "quickfixai" && url.host == "payment-success" {
@@ -44,9 +19,6 @@ struct RootView: View {
         }
         .sheet(isPresented: $paymentSucceeded) {
             PaymentSuccessView()
-        }
-        .sheet(isPresented: $showFeedback) {
-            FeedbackModalView()
         }
         .sheet(isPresented: Bindable(authVM).showDisplayNameModal) {
             DisplayNameModalView()
@@ -68,7 +40,7 @@ struct RootView: View {
 
         } else if userVM.hasActiveAccess {
             // Signed in + active subscription → full app
-            MainTabView(showFeedback: $showFeedback)
+            MainTabView()
                 .transition(.opacity)
 
         } else {

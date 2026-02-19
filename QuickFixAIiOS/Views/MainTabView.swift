@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @Binding var showFeedback: Bool
-
     var body: some View {
         TabView {
             RepairView()
