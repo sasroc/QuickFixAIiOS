@@ -69,16 +69,11 @@ struct RepairHistoryView: View {
                 }
 
                 ForEach(historyVM.repairs) { repair in
-                    RepairHistoryCard(repair: repair)
-                        .onTapGesture { selected = repair }
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                deleteTarget = repair
-                                showDeleteAlert = true
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
+                    RepairHistoryCard(repair: repair) {
+                        deleteTarget = repair
+                        showDeleteAlert = true
+                    }
+                    .onTapGesture { selected = repair }
                 }
             }
             .padding(.horizontal)
@@ -121,12 +116,22 @@ struct RepairHistoryView: View {
 
 private struct RepairHistoryCard: View {
     let repair: RepairGuide
+    let onDelete: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(repair.title)
-                .font(.subheadline).fontWeight(.semibold)
-                .lineLimit(2)
+            HStack(alignment: .top) {
+                Text(repair.title)
+                    .font(.subheadline).fontWeight(.semibold)
+                    .lineLimit(2)
+                Spacer()
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.subheadline)
+                        .foregroundStyle(.red.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+            }
 
             HStack(spacing: 16) {
                 StatPill(icon: "list.number",  value: "\(repair.steps.count) steps")
