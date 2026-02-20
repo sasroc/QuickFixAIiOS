@@ -51,6 +51,12 @@ targets:
         product: GoogleSignIn
       - package: GoogleSignIn-iOS
         product: GoogleSignInSwift
+    entitlements:
+      path: QuickFixAIiOS/QuickFixAIiOS.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.quickfixai.ios

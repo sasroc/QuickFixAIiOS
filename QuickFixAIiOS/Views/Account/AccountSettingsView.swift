@@ -28,6 +28,10 @@ struct AccountSettingsView: View {
         Auth.auth().currentUser?.providerData.first?.providerID == "google.com"
     }
 
+    private var isAppleUser: Bool {
+        Auth.auth().currentUser?.providerData.first?.providerID == "apple.com"
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -151,6 +155,9 @@ struct AccountSettingsView: View {
             if isGoogleUser {
                 Label("Signed in with Google", systemImage: "person.crop.circle.badge.checkmark")
                     .font(.footnote).foregroundStyle(.secondary)
+            } else if isAppleUser {
+                Label("Signed in with Apple", systemImage: "apple.logo")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
         }
     }
@@ -217,7 +224,7 @@ struct AccountSettingsView: View {
 
     private var securitySection: some View {
         Section("Security") {
-            if !isGoogleUser {
+            if !isGoogleUser && !isAppleUser {
                 Button {
                     Task {
                         guard let email = authVM.firebaseUser?.email else { return }

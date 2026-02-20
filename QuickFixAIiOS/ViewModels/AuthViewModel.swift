@@ -3,6 +3,8 @@ import FirebaseAuth
 import FirebaseFirestore
 import GoogleSignIn
 import GoogleSignInSwift
+import AuthenticationServices
+import CryptoKit
 
 @MainActor
 @Observable
@@ -15,6 +17,8 @@ final class AuthViewModel {
     var showDisplayNameModal = false
 
     private nonisolated(unsafe) var authListener: AuthStateDidChangeListenerHandle?
+    private var currentNonce: String?
+    private var appleSignInDelegate: AppleSignInDelegate?
 
     // MARK: - Computed
     var isSignedIn: Bool { firebaseUser != nil }
@@ -113,6 +117,75 @@ final class AuthViewModel {
         }
     }
 
+    // MARK: - Apple Sign-In
+
+    func signInWithApple() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        let nonce = randomNonceString()
+        currentNonce = nonce
+
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = sha256(nonce)
+
+        do {
+            let authorization: ASAuthorization = try await withCheckedThrowingContinuation { cont in
+                let delegate = AppleSignInDelegate(continuation: cont)
+                appleSignInDelegate = delegate
+                let controller = ASAuthorizationController(authorizationRequests: [request])
+                controller.delegate = delegate
+                controller.presentationContextProvider = delegate
+                controller.performRequests()
+            }
+            appleSignInDelegate = nil
+
+            guard
+                let cred = authorization.credential as? ASAuthorizationAppleIDCredential,
+                let tokenData = cred.identityToken,
+                let idToken = String(data: tokenData, encoding: .utf8),
+                let nonce = currentNonce
+            else {
+                errorMessage = "Apple Sign-In failed: missing credential data."
+                return
+            }
+
+            let firebaseCred = OAuthProvider.appleCredential(
+                withIDToken: idToken,
+                rawNonce: nonce,
+                fullName: cred.fullName
+            )
+
+            let authResult = try await Auth.auth().signIn(with: firebaseCred)
+
+            // Apple only provides the full name on the very first sign-in
+            var displayName = authResult.user.displayName ?? ""
+            if let fullName = cred.fullName {
+                let parts = [fullName.givenName, fullName.familyName]
+                    .compactMap { $0 }
+                    .filter { !$0.isEmpty }
+                if !parts.isEmpty {
+                    displayName = parts.joined(separator: " ")
+                    let change = authResult.user.createProfileChangeRequest()
+                    change.displayName = displayName
+                    try? await change.commitChanges()
+                }
+            }
+
+            await createFirestoreUserDoc(user: authResult.user, displayName: displayName)
+
+        } catch {
+            appleSignInDelegate = nil
+            let nsErr = error as NSError
+            if nsErr.domain == ASAuthorizationError.errorDomain,
+               nsErr.code == ASAuthorizationError.canceled.rawValue { return }
+            errorMessage = error.localizedDescription
+        }
+    }
+
     // MARK: - Sign Out
 
     func signOut() {
@@ -203,6 +276,30 @@ final class AuthViewModel {
         )
     }
 
+    private func randomNonceString(length: Int = 32) -> String {
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var nonce = ""
+        var remaining = length
+        while remaining > 0 {
+            var randoms = [UInt8](repeating: 0, count: 16)
+            _ = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
+            for byte in randoms {
+                if remaining == 0 { break }
+                if byte < charset.count {
+                    nonce.append(charset[Int(byte)])
+                    remaining -= 1
+                }
+            }
+        }
+        return nonce
+    }
+
+    private func sha256(_ input: String) -> String {
+        SHA256.hash(data: Data(input.utf8))
+            .compactMap { String(format: "%02x", $0) }
+            .joined()
+    }
+
     private func mapAuthError(_ error: Error) -> String {
         let e = error as NSError
         switch AuthErrorCode(rawValue: e.code) {
@@ -221,5 +318,35 @@ final class AuthViewModel {
         default:
             return error.localizedDescription
         }
+    }
+}
+
+// MARK: - Apple Sign-In Delegate
+
+private final class AppleSignInDelegate: NSObject,
+    ASAuthorizationControllerDelegate,
+    ASAuthorizationControllerPresentationContextProviding {
+
+    private let continuation: CheckedContinuation<ASAuthorization, Error>
+
+    init(continuation: CheckedContinuation<ASAuthorization, Error>) {
+        self.continuation = continuation
+    }
+
+    func authorizationController(controller: ASAuthorizationController,
+                                 didCompleteWithAuthorization authorization: ASAuthorization) {
+        continuation.resume(returning: authorization)
+    }
+
+    func authorizationController(controller: ASAuthorizationController,
+                                 didCompleteWithError error: Error) {
+        continuation.resume(throwing: error)
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .first(where: { $0.activationState == .foregroundActive })
+            .flatMap { $0 as? UIWindowScene }
+            .flatMap { $0.keyWindow } ?? UIWindow()
     }
 }
