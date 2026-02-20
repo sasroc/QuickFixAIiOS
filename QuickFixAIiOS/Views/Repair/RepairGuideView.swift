@@ -48,15 +48,28 @@ struct RepairGuideView: View {
                     }
 
                     // Progress bar
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("Progress").font(.caption).foregroundStyle(.secondary)
                             Spacer()
                             Text("\(completedSteps.count)/\(guide.steps.count) steps")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                        ProgressView(value: progress)
-                            .tint(.brand)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.inputBackground)
+                                    .frame(height: 7)
+                                Capsule()
+                                    .fill(LinearGradient(
+                                        colors: [Color.brandBlue, Color.brand],
+                                        startPoint: .leading, endPoint: .trailing
+                                    ))
+                                    .frame(width: max(geo.size.width * progress, 0), height: 7)
+                                    .animation(.easeInOut, value: progress)
+                            }
+                        }
+                        .frame(height: 7)
                     }
                 }
                 .padding(.horizontal)
@@ -147,9 +160,19 @@ struct RepairGuideView: View {
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 ZStack {
-                    Circle()
-                        .fill(completedSteps.contains(currentStepIndex) ? Color.success : Color.brand)
-                        .frame(width: 32, height: 32)
+                    if completedSteps.contains(currentStepIndex) {
+                        Circle()
+                            .fill(Color.success)
+                            .frame(width: 34, height: 34)
+                    } else {
+                        Circle()
+                            .fill(LinearGradient(
+                                colors: [Color.brandBlue, Color.brand],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ))
+                            .frame(width: 34, height: 34)
+                            .shadow(color: Color.brand.opacity(0.3), radius: 4, y: 2)
+                    }
                     Text("\(currentStepIndex + 1)")
                         .font(.headline).fontWeight(.bold).foregroundStyle(.white)
                 }

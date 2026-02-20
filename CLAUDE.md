@@ -106,13 +106,42 @@ Colors are defined in `Extensions/Color+Extensions.swift` and match the webapp C
 - `Color.cardBackground` / `Color.inputBackground` use `UIColor` adaptive initializers (requires `import UIKit` — SourceKit may show a false-positive "No such module UIKit" warning that does not affect compilation)
 - `Color.brandGradient` (blue→teal) for hero sections; `Color.ctaGradient` for CTA buttons
 
-## View Utilities (`Extensions/View+Extensions.swift`)
+## Models
 
-Reusable modifiers to keep views consistent:
+Each model has two init patterns and a Firestore write helper:
+- `init(from AI response)` — takes typed fields from `AIAnalyzeResponse` or ViewModel logic
+- `init?(id:data:)` — failable init from Firestore `[String: Any]` document data
+- `firestoreData: [String: Any]` — computed property on `RepairGuide` for writing to Firestore
+
+**Firestore schema constraints on `RepairGuide.firestoreData`** (must match Firestore security rules):
+- `estimatedTime` is written as a **String** (`"45 minutes"`), not an Int — matches web app and security rule schema
+- `steps` array only writes `description`; the `image` field is iOS-only and excluded
+- `imageBase64` is intentionally omitted from Firestore writes (not in security rule schema)
+
+`FirestoreTimestampProtocol` is declared in `Models/User.swift`; `FirestoreService.swift` provides the `@retroactive` conformance for `Timestamp`. Models import neither Firebase nor FirestoreService.
+
+**`UserProfile` key computed properties:**
+- `hasActiveAccess` — `subscriptionStatus.isActiveOrTrialing || hasLifetimeAccess`
+- `isTrialEligible` — `!wasOnTrial && !hasLifetimeAccess && subscriptionStatus != .active`
+- `totalCredits` — lifetime users get Starter credits (10) regardless of plan
+
+## View Utilities
+
+**`Extensions/View+Extensions.swift`:**
 - `.cardStyle()` — padding + `cardBackground` + `cornerRadius(12)`
-- `.primaryButtonStyle()` — full-width, `brand` color, 14pt vertical padding
+- `.primaryButtonStyle(disabled:)` — full-width, `brand` color (gray when disabled), 14pt vertical padding
 - `.shake(trigger:)` — 8pt shake animation for validation errors
 - `.if(condition) { }` — conditional ViewBuilder modifier
+
+**`Extensions/Date+Extensions.swift`:**
+- `.relativeString` — abbreviated relative format ("2 hr. ago")
+- `.shortFormatted` — medium date, no time
+- `.mediumFormatted` — medium date + short time
+- `.isMoreThan(_ hours:since:)` — elapsed time check (used for refund eligibility)
+
+**`Views/Common/SubscriptionGateView`** — generic wrapper that shows content for subscribed users or a locked paywall prompt otherwise. Wrap any gated feature content with `SubscriptionGateView { ... }`.
+
+**`AppConfig.plans`** — the source of truth for all plan pricing, credit counts, and feature lists shown in `PaywallView` and `PricingView`. Update pricing here, not in views.
 
 ## SPM Dependencies
 

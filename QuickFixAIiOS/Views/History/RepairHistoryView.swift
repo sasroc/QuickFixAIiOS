@@ -22,7 +22,13 @@ struct RepairHistoryView: View {
                 }
             }
             .navigationTitle("Repair History")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(
+                LinearGradient(colors: [Color.brandBlue, Color.brand], startPoint: .leading, endPoint: .trailing),
+                for: .navigationBar
+            )
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
         .background(Color.appBackground)
         .alert("Delete Repair?", isPresented: $showDeleteAlert) {
@@ -49,12 +55,84 @@ struct RepairHistoryView: View {
         }
     }
 
+    private var repairHistoryHeader: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Repair History")
+                    .font(.title2).fontWeight(.heavy)
+                    .foregroundStyle(.primary)
+
+                Group {
+                    if let cap = userVM.profile?.plan.historyCap {
+                        Text("\(historyVM.repairs.count) / \(cap) repairs saved")
+                    } else {
+                        Text("\(historyVM.repairs.count) repair\(historyVM.repairs.count == 1 ? "" : "s") saved")
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            // Circular progress (only when there's a cap)
+            if let cap = userVM.profile?.plan.historyCap {
+                let fraction = min(Double(historyVM.repairs.count) / Double(cap), 1.0)
+                ZStack {
+                    Circle()
+                        .stroke(Color.inputBackground, lineWidth: 4)
+                    Circle()
+                        .trim(from: 0, to: fraction)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.brandBlue, Color.brand],
+                                startPoint: .leading, endPoint: .trailing
+                            ),
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut, value: fraction)
+                    Text("\(historyVM.repairs.count)")
+                        .font(.caption2).fontWeight(.bold)
+                        .foregroundStyle(Color.brand)
+                }
+                .frame(width: 44, height: 44)
+            } else {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(Color.brand)
+            }
+        }
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [Color.brandBlue.opacity(0.06), Color.brand.opacity(0.06)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.brandBlue.opacity(0.2), Color.brand.opacity(0.2)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
+        )
+    }
+
     private var repairList: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
+                // Header card
+                repairHistoryHeader
+                    .padding(.top, 4)
+
+                // At-cap warning (only when reached limit)
                 if let plan = userVM.profile?.plan, let cap = plan.historyCap {
-                    let atCap = historyVM.repairs.count >= cap
-                    if atCap {
+                    if historyVM.repairs.count >= cap {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange)
@@ -64,7 +142,6 @@ struct RepairHistoryView: View {
                         .padding()
                         .background(Color.orange.opacity(0.1))
                         .cornerRadius(10)
-                        .padding(.horizontal)
                     }
                 }
 
@@ -77,7 +154,6 @@ struct RepairHistoryView: View {
                 }
             }
             .padding(.horizontal)
-            .padding(.top, 8)
             .padding(.bottom, 32)
         }
         .background(Color.appBackground)
@@ -119,35 +195,46 @@ private struct RepairHistoryCard: View {
     let onDelete: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                Text(repair.title)
-                    .font(.subheadline).fontWeight(.semibold)
-                    .lineLimit(2)
-                Spacer()
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.subheadline)
-                        .foregroundStyle(.red.opacity(0.7))
+        HStack(spacing: 0) {
+            // Left gradient accent bar
+            Rectangle()
+                .fill(LinearGradient(
+                    colors: [Color.brandBlue, Color.brand],
+                    startPoint: .top, endPoint: .bottom
+                ))
+                .frame(width: 4)
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    Text(repair.title)
+                        .font(.subheadline).fontWeight(.semibold)
+                        .lineLimit(2)
+                    Spacer()
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.subheadline)
+                            .foregroundStyle(.red.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-            }
 
-            HStack(spacing: 16) {
-                StatPill(icon: "list.number",  value: "\(repair.steps.count) steps")
-                StatPill(icon: "wrench.fill",  value: "\(repair.tools.count) tools")
-                StatPill(icon: "clock.fill",   value: "\(repair.estimatedTime) min")
-            }
+                HStack(spacing: 16) {
+                    StatPill(icon: "list.number",  value: "\(repair.steps.count) steps")
+                    StatPill(icon: "wrench.fill",  value: "\(repair.tools.count) tools")
+                    StatPill(icon: "clock.fill",   value: "\(repair.estimatedTime) min")
+                }
 
-            if let ts = repair.timestamp {
-                Text(ts.mediumFormatted)
-                    .font(.caption2).foregroundStyle(.tertiary)
+                if let ts = repair.timestamp {
+                    Text(ts.mediumFormatted)
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
         .background(Color.cardBackground)
         .cornerRadius(12)
+        .clipped()
     }
 }
 
@@ -156,8 +243,13 @@ private struct StatPill: View {
     let value: String
 
     var body: some View {
-        Label(value, systemImage: icon)
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(Color.brand)
+            Text(value)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 }

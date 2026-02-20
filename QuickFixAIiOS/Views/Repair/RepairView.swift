@@ -45,6 +45,12 @@ struct RepairView: View {
             }
             .navigationTitle("QuickFix AI")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(
+                LinearGradient(colors: [Color.brandBlue, Color.brand], startPoint: .leading, endPoint: .trailing),
+                for: .navigationBar
+            )
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {

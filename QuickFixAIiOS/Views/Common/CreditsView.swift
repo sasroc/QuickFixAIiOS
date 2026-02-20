@@ -9,27 +9,63 @@ struct CreditsView: View {
     private var progress: Double { total > 0 ? Double(used) / Double(total) : 0 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("\(remaining) / \(total) credits", systemImage: "bolt.fill")
-                    .font(.footnote).fontWeight(.semibold)
-                    .foregroundStyle(remaining == 0 ? .red : .brand)
+                HStack(spacing: 5) {
+                    Image(systemName: "bolt.fill")
+                        .font(.caption)
+                        .foregroundStyle(remaining == 0 ? .red : Color.brand)
+                    Text("\(remaining) of \(total) credits remaining")
+                        .font(.footnote).fontWeight(.semibold)
+                        .foregroundStyle(remaining == 0 ? .red : .primary)
+                }
                 Spacer()
                 Text(plan.displayName)
-                    .font(.caption2)
+                    .font(.caption2).fontWeight(.semibold)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(Color.brand.opacity(0.15))
+                    .background(
+                        LinearGradient(
+                            colors: [Color.brandBlue.opacity(0.12), Color.brand.opacity(0.12)],
+                            startPoint: .leading, endPoint: .trailing
+                        )
+                    )
                     .foregroundStyle(Color.brand)
                     .cornerRadius(8)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.brand.opacity(0.25), lineWidth: 1))
             }
 
-            ProgressView(value: progress)
-                .tint(progress > 0.8 ? .red : .brand)
+            // Custom gradient progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.inputBackground)
+                        .frame(height: 7)
+                    Capsule()
+                        .fill(
+                            remaining == 0
+                                ? LinearGradient(colors: [.red, .red], startPoint: .leading, endPoint: .trailing)
+                                : LinearGradient(colors: [Color.brandBlue, Color.brand], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .frame(width: max(geo.size.width * progress, 0), height: 7)
+                        .animation(.easeInOut(duration: 0.5), value: progress)
+                }
+            }
+            .frame(height: 7)
         }
-        .padding(10)
+        .padding(12)
         .background(Color.cardBackground)
-        .cornerRadius(10)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.brandBlue.opacity(0.15), Color.brand.opacity(0.15)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
     }
 }
 

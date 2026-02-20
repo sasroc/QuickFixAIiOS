@@ -31,6 +31,11 @@ struct AccountSettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    profileHeaderRow
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                }
                 profileSection
                 subscriptionSection
                 securitySection
@@ -77,6 +82,51 @@ struct AccountSettingsView: View {
         }
         .overlay { if userVM.isLoading { LoadingOverlayView(message: "Please wait…") } }
         .task { refundEligibility = await userVM.checkRefundEligibility() }
+    }
+
+    // MARK: - Profile Header
+
+    private var profileHeaderRow: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Color.brandBlue, Color.brand],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 58, height: 58)
+                    .shadow(color: Color.brand.opacity(0.3), radius: 6, y: 3)
+                Text(
+                    String(
+                        (profile?.displayName ?? authVM.firebaseUser?.displayName ?? "U")
+                            .prefix(1)
+                    ).uppercased()
+                )
+                .font(.title2).fontWeight(.bold)
+                .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(profile?.displayName ?? authVM.firebaseUser?.displayName ?? "User")
+                    .font(.headline).fontWeight(.semibold)
+                Text(profile?.email ?? authVM.firebaseUser?.email ?? "")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Text(profile?.plan.displayName ?? "Free")
+                    .font(.caption).fontWeight(.semibold)
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.brandBlue.opacity(0.12), Color.brand.opacity(0.12)],
+                            startPoint: .leading, endPoint: .trailing
+                        )
+                    )
+                    .foregroundStyle(Color.brand)
+                    .cornerRadius(6)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.brand.opacity(0.2), lineWidth: 1))
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
     }
 
     // MARK: - Sections

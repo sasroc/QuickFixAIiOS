@@ -21,14 +21,46 @@ struct InputFormView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Header
-                VStack(spacing: 6) {
-                    Text("Describe Your Repair")
-                        .font(.title2).fontWeight(.bold)
-                    Text("Tell us what's broken and we'll create a step-by-step guide.")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                // Hero banner
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(
+                                colors: [Color.brandBlue, Color.brand],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ))
+                            .frame(width: 50, height: 50)
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("AI Repair Assistant")
+                            .font(.headline).fontWeight(.heavy)
+                        Text("Describe your issue for a step-by-step guide")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
                 }
+                .padding(16)
+                .background(
+                    LinearGradient(
+                        colors: [Color.brandBlue.opacity(0.06), Color.brand.opacity(0.06)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                )
+                .cornerRadius(16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.brandBlue.opacity(0.2), Color.brand.opacity(0.2)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.5
+                        )
+                )
+                .padding(.horizontal)
                 .padding(.top, 16)
 
                 // Text input
@@ -95,26 +127,37 @@ struct InputFormView: View {
                     } else {
                         HStack(spacing: 12) {
                             PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                                Label("Choose Photo", systemImage: "photo.on.rectangle")
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(Color.inputBackground)
-                                    .cornerRadius(10)
-                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(UIColor.quaternaryLabel), lineWidth: 1))
+                                VStack(spacing: 6) {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.title3)
+                                    Text("Choose Photo")
+                                        .font(.footnote).fontWeight(.medium)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color.brandBlue.opacity(0.07))
+                                .foregroundStyle(Color.brandBlue)
+                                .cornerRadius(12)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandBlue.opacity(0.2), lineWidth: 1.5))
                             }
 
                             Button {
                                 showCamera = true
                             } label: {
-                                Label("Camera", systemImage: "camera.fill")
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(Color.inputBackground)
-                                    .cornerRadius(10)
-                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(UIColor.quaternaryLabel), lineWidth: 1))
+                                VStack(spacing: 6) {
+                                    Image(systemName: "camera.fill")
+                                        .font(.title3)
+                                    Text("Camera")
+                                        .font(.footnote).fontWeight(.medium)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color.brand.opacity(0.07))
+                                .foregroundStyle(Color.brand)
+                                .cornerRadius(12)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brand.opacity(0.2), lineWidth: 1.5))
                             }
                         }
-                        .foregroundStyle(Color.brand)
                     }
                 }
                 .padding(.horizontal)
@@ -123,11 +166,21 @@ struct InputFormView: View {
                 Button {
                     Task { await repairVM.analyze(description: description, image: selectedImage) }
                 } label: {
-                    HStack {
+                    HStack(spacing: 8) {
                         Image(systemName: "wand.and.stars")
                         Text("Get Repair Guide")
+                            .fontWeight(.semibold)
                     }
-                    .primaryButtonStyle(disabled: !canSubmit)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(
+                        canSubmit
+                            ? LinearGradient(colors: [Color.brandBlue, Color.brand], startPoint: .leading, endPoint: .trailing)
+                            : LinearGradient(colors: [Color.gray.opacity(0.4), Color.gray.opacity(0.4)], startPoint: .leading, endPoint: .trailing)
+                    )
+                    .foregroundStyle(.white)
+                    .cornerRadius(12)
+                    .shadow(color: canSubmit ? Color.brand.opacity(0.35) : .clear, radius: 8, y: 4)
                 }
                 .disabled(!canSubmit)
                 .padding(.horizontal)
