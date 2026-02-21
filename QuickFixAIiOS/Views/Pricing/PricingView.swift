@@ -12,6 +12,7 @@ struct PricingView: View {
     @State private var checkoutURL: URL? = nil
     @State private var showSafari      = false
     @State private var showAuth        = false
+    @State private var showError       = false
 
     var body: some View {
         NavigationStack {
@@ -122,6 +123,11 @@ struct PricingView: View {
                     LoadingOverlayView(message: "Opening checkout…")
                 }
             }
+            .alert("Checkout Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(userVM.errorMessage ?? "Unable to open checkout. Please try again.")
+            }
         }
     }
 
@@ -136,6 +142,8 @@ struct PricingView: View {
             ) {
                 checkoutURL = url
                 showSafari  = true
+            } else {
+                showError = true
             }
         }
     }

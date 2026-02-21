@@ -67,7 +67,14 @@ final class UserViewModel {
         defer { isLoading = false }
         do {
             let endpoint = isTrial ? "/api/stripe/start-trial" : "/api/stripe/subscribe"
-            let body: [String: Any] = ["uid": uid, "plan": plan, "billing": billing, "isTrial": isTrial]
+            let body: [String: Any] = [
+            "uid": uid,
+            "plan": plan,
+            "billing": billing,
+            "isTrial": isTrial,
+            "successUrl": AppConfig.stripeSuccessURL,
+            "cancelUrl": AppConfig.stripeCancelURL
+        ]
             let response: CheckoutURLResponse = try await APIService.shared.post(endpoint, body: body)
             return URL(string: response.url)
         } catch {

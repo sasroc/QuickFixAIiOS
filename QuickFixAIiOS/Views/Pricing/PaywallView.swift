@@ -8,6 +8,7 @@ struct PaywallView: View {
     @State private var isAnnual    = false
     @State private var checkoutURL: URL? = nil
     @State private var showSafari  = false
+    @State private var showError   = false
 
     private var starterPlan: AppConfig.PlanInfo? { AppConfig.plan(for: "starter") }
     private var proPlan:     AppConfig.PlanInfo? { AppConfig.plan(for: "pro") }
@@ -54,6 +55,11 @@ struct PaywallView: View {
         }
         .fullScreenCover(isPresented: $showSafari) {
             if let url = checkoutURL { SafariView(url: url).ignoresSafeArea() }
+        }
+        .alert("Checkout Error", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(userVM.errorMessage ?? "Unable to open checkout. Please try again.")
         }
     }
 
@@ -397,6 +403,8 @@ struct PaywallView: View {
             if let url = await userVM.createCheckoutURL(plan: plan, billing: billing, isTrial: isTrial) {
                 checkoutURL = url
                 showSafari  = true
+            } else {
+                showError = true
             }
         }
     }
