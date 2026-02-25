@@ -2,12 +2,32 @@ import Foundation
 
 enum AppConfig {
     // MARK: - Backend
-    /// Replace with your Railway backend URL (no trailing slash)
     static let apiBaseURL = "https://quickfix-ai-powered-home-maintenance-advisor-production.up.railway.app"
 
     // MARK: - Stripe (web-based checkout, opened in Safari)
     static let stripeSuccessURL = "quickfixai://payment-success"
     static let stripeCancelURL  = "quickfixai://payment-cancel"
+
+    // MARK: - StoreKit Product IDs
+    enum StoreKitProducts {
+        static let starterMonthly  = "com.quickfixai.starter.monthly"
+        static let starterAnnual   = "com.quickfixai.starter.annual"
+        static let proMonthly      = "com.quickfixai.pro.monthly"
+        static let proAnnual       = "com.quickfixai.pro.annual"
+        static let premiumMonthly  = "com.quickfixai.premium.monthly"
+        static let premiumAnnual   = "com.quickfixai.premium.annual"
+
+        static let all: [String] = [
+            starterMonthly, starterAnnual,
+            proMonthly, proAnnual,
+            premiumMonthly, premiumAnnual,
+        ]
+
+        /// Returns the product ID for a given plan + billing combination.
+        static func productId(plan: String, billing: String) -> String {
+            "com.quickfixai.\(plan).\(billing)"
+        }
+    }
 
     // MARK: - Trial
     static let trialPeriodDays = 5

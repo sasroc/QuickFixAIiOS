@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import FirebaseAuth
 import FirebaseFirestore
 
@@ -15,10 +16,11 @@ final class UserViewModel {
     private var listener: ListenerRegistration?
 
     // MARK: - Computed
-    var hasActiveAccess: Bool { profile?.hasActiveAccess ?? false }
-    var credits: Int          { profile?.credits ?? 0 }
-    var plan: SubscriptionPlan { profile?.plan ?? .none }
-    var isAdmin: Bool         { profile?.isAdmin ?? false }
+    var hasActiveAccess: Bool    { profile?.hasActiveAccess ?? false }
+    var credits: Int             { profile?.credits ?? 0 }
+    var plan: SubscriptionPlan   { profile?.plan ?? .none }
+    var isAdmin: Bool            { profile?.isAdmin ?? false }
+    var isAppleSubscriber: Bool  { profile?.isAppleSubscriber ?? false }
 
     // MARK: - Start/stop listening to user document
 
@@ -98,6 +100,14 @@ final class UserViewModel {
             errorMessage = error.localizedDescription
             return nil
         }
+    }
+
+    // MARK: - Apple IAP
+
+    /// Opens the system subscription management page for Apple subscribers.
+    func openAppleSubscriptionManagement() {
+        guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else { return }
+        UIApplication.shared.open(url)
     }
 
     // MARK: - Refund

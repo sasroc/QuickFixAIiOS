@@ -2,9 +2,10 @@ import SwiftUI
 import FirebaseAuth
 
 struct AccountSettingsView: View {
-    @Environment(AuthViewModel.self)  private var authVM
-    @Environment(UserViewModel.self)  private var userVM
-    @Environment(\.dismiss)          private var dismiss
+    @Environment(AuthViewModel.self)   private var authVM
+    @Environment(UserViewModel.self)   private var userVM
+    @Environment(StoreKitService.self) private var storeKitService
+    @Environment(\.dismiss)           private var dismiss
 
     @State private var showDisplayNameEdit = false
     @State private var newDisplayName      = ""
@@ -192,10 +193,14 @@ struct AccountSettingsView: View {
 
             Button {
                 if userVM.hasActiveAccess {
-                    Task {
-                        if let url = await userVM.createPortalURL() {
-                            checkoutURL = url
-                            showSafari  = true
+                    if userVM.isAppleSubscriber {
+                        userVM.openAppleSubscriptionManagement()
+                    } else {
+                        Task {
+                            if let url = await userVM.createPortalURL() {
+                                checkoutURL = url
+                                showSafari  = true
+                            }
                         }
                     }
                 } else {
@@ -208,16 +213,25 @@ struct AccountSettingsView: View {
                 )
             }
 
-            // Refund
-            if let eligibility = refundEligibility, eligibility.eligible {
-                Button(role: .destructive) {
-                    showRefundAlert = true
-                } label: {
-                    Label("Request Refund", systemImage: "arrow.uturn.backward")
+            // Restore Purchases (required by App Store guidelines)
+            Button {
+                Task { await storeKitService.restorePurchases() }
+            } label: {
+                Label("Restore Purchases", systemImage: "arrow.clockwise")
+            }
+
+            // Refund — Stripe subscribers only (Apple handles its own refunds via App Store)
+            if !userVM.isAppleSubscriber {
+                if let eligibility = refundEligibility, eligibility.eligible {
+                    Button(role: .destructive) {
+                        showRefundAlert = true
+                    } label: {
+                        Label("Request Refund", systemImage: "arrow.uturn.backward")
+                    }
+                } else if refundDone {
+                    Label("Refund Requested", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(Color.success)
                 }
-            } else if refundDone {
-                Label("Refund Requested", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(Color.success)
             }
         }
     }

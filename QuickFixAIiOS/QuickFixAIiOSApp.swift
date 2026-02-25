@@ -40,11 +40,12 @@ struct QuickFixAIiOSApp: App {
     // is guaranteed to run before any .task {} modifiers in the view body.
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
-    @State private var authVM      = AuthViewModel()
-    @State private var userVM      = UserViewModel()
-    @State private var repairVM    = RepairViewModel()
-    @State private var historyVM   = HistoryViewModel()
-    @State private var communityVM = CommunityViewModel()
+    @State private var authVM        = AuthViewModel()
+    @State private var userVM        = UserViewModel()
+    @State private var repairVM      = RepairViewModel()
+    @State private var historyVM     = HistoryViewModel()
+    @State private var communityVM   = CommunityViewModel()
+    @State private var storeKitService = StoreKitService()
 
     var body: some Scene {
         WindowGroup {
@@ -54,6 +55,7 @@ struct QuickFixAIiOSApp: App {
                 .environment(repairVM)
                 .environment(historyVM)
                 .environment(communityVM)
+                .environment(storeKitService)
                 // Start the Firebase Auth listener only after Firebase is configured.
                 // .task runs after applicationDidFinishLaunchingWithOptions, so it's safe.
                 .task {

@@ -73,6 +73,8 @@ struct UserProfile: Equatable {
     var hasLifetimeAccess: Bool
     var lastCreditReset: Date?
     var createdAt: Date?
+    var paymentProvider: String?             // "stripe" | "apple" | nil
+    var appleOriginalTransactionId: String?  // set by backend on IAP verify
 
     // MARK: Computed
 
@@ -82,6 +84,10 @@ struct UserProfile: Equatable {
 
     var isTrialEligible: Bool {
         !wasOnTrial && !hasLifetimeAccess && subscriptionStatus != .active
+    }
+
+    var isAppleSubscriber: Bool {
+        paymentProvider == "apple"
     }
 
     var totalCredits: Int {
@@ -99,8 +105,10 @@ struct UserProfile: Equatable {
         self.hasLifetimeAccess  = data["hasLifetimeAccess"] as? Bool ?? false
         self.isOnTrial          = data["isOnTrial"] as? Bool ?? false
         self.wasOnTrial         = data["wasOnTrial"] as? Bool ?? false
-        self.stripeCustomerId     = data["stripeCustomerId"] as? String
-        self.stripeSubscriptionId = data["stripeSubscriptionId"] as? String
+        self.stripeCustomerId            = data["stripeCustomerId"] as? String
+        self.stripeSubscriptionId       = data["stripeSubscriptionId"] as? String
+        self.paymentProvider            = data["paymentProvider"] as? String
+        self.appleOriginalTransactionId = data["appleOriginalTransactionId"] as? String
 
         self.subscriptionStatus = SubscriptionStatus(rawValue: data["subscriptionStatus"] as? String ?? "inactive") ?? .inactive
         self.plan               = SubscriptionPlan(rawValue: data["plan"] as? String ?? "none") ?? .none

@@ -42,6 +42,8 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CFBundleDisplayName: "QuickFix AI"
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         NSCameraUsageDescription: "Take a photo of your repair issue so our AI can better diagnose the problem."
         NSPhotoLibraryUsageDescription: "Choose a photo of your repair issue for AI analysis."
         NSMicrophoneUsageDescription: "Describe your repair issue using your voice."

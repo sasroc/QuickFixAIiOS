@@ -2,13 +2,13 @@ import SwiftUI
 
 /// Full-screen paywall shown to signed-in users who don't have an active subscription.
 struct PaywallView: View {
-    @Environment(UserViewModel.self)  private var userVM
-    @Environment(AuthViewModel.self)  private var authVM
+    @Environment(UserViewModel.self)    private var userVM
+    @Environment(AuthViewModel.self)    private var authVM
+    @Environment(StoreKitService.self)  private var storeKitService
 
-    @State private var isAnnual    = false
-    @State private var checkoutURL: URL? = nil
-    @State private var showSafari  = false
-    @State private var showError   = false
+    @State private var isAnnual         = false
+    @State private var purchaseError: String? = nil
+    @State private var showPurchaseError = false
 
     private var starterPlan: AppConfig.PlanInfo? { AppConfig.plan(for: "starter") }
     private var proPlan:     AppConfig.PlanInfo? { AppConfig.plan(for: "pro") }
@@ -51,15 +51,21 @@ struct PaywallView: View {
             }
         }
         .overlay {
-            if userVM.isLoading { LoadingOverlayView(message: "Opening checkout…") }
+            if storeKitService.purchaseInProgress {
+                LoadingOverlayView(message: "Processing…")
+            }
         }
-        .fullScreenCover(isPresented: $showSafari) {
-            if let url = checkoutURL { SafariView(url: url).ignoresSafeArea() }
-        }
-        .alert("Checkout Error", isPresented: $showError) {
+        .alert("Purchase Error", isPresented: $showPurchaseError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(userVM.errorMessage ?? "Unable to open checkout. Please try again.")
+            Text(purchaseError ?? "Unable to complete purchase. Please try again.")
+        }
+        .onChange(of: storeKitService.purchaseError) { _, error in
+            if let error {
+                purchaseError    = error
+                showPurchaseError = true
+                storeKitService.purchaseError = nil
+            }
         }
     }
 
@@ -158,7 +164,7 @@ struct PaywallView: View {
 
             // CTA
             Button {
-                checkout(plan: "starter", billing: "monthly", isTrial: true)
+                purchaseViaApple(productId: AppConfig.StoreKitProducts.starterMonthly)
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
@@ -180,8 +186,9 @@ struct PaywallView: View {
                 }
                 .frame(height: 54)
             }
+            .disabled(storeKitService.purchaseInProgress)
 
-            Text("Card required upfront  ·  No charge for 5 days  ·  $\(Int(plan.monthlyPrice))/mo after")
+            Text("No charge for 5 days  ·  $\(Int(plan.monthlyPrice))/mo after  ·  Cancel anytime")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -259,7 +266,8 @@ struct PaywallView: View {
         accentColor: Color,
         badge: String?
     ) -> some View {
-        let price = isAnnual ? plan.annualPrice : plan.monthlyPrice
+        let price     = isAnnual ? plan.annualPrice : plan.monthlyPrice
+        let productId = AppConfig.StoreKitProducts.productId(plan: plan.id, billing: isAnnual ? "annual" : "monthly")
 
         return VStack(alignment: .leading, spacing: 12) {
             // Badge
@@ -318,7 +326,7 @@ struct PaywallView: View {
 
             // CTA
             Button {
-                checkout(plan: plan.id, billing: isAnnual ? "annual" : "monthly", isTrial: false)
+                purchaseViaApple(productId: productId)
             } label: {
                 Text("Choose \(plan.displayName)")
                     .font(.footnote).fontWeight(.semibold)
@@ -328,6 +336,7 @@ struct PaywallView: View {
                     .foregroundStyle(.white)
                     .cornerRadius(10)
             }
+            .disabled(storeKitService.purchaseInProgress)
         }
         .padding(16)
         .frame(maxWidth: .infinity)
@@ -343,7 +352,8 @@ struct PaywallView: View {
     // MARK: - Starter Fallback (trial used)
 
     private func starterFallbackRow(plan: AppConfig.PlanInfo) -> some View {
-        let price = isAnnual ? plan.annualPrice : plan.monthlyPrice
+        let price     = isAnnual ? plan.annualPrice : plan.monthlyPrice
+        let productId = AppConfig.StoreKitProducts.productId(plan: "starter", billing: isAnnual ? "annual" : "monthly")
 
         return HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
@@ -354,7 +364,7 @@ struct PaywallView: View {
             }
             Spacer()
             Button {
-                checkout(plan: "starter", billing: isAnnual ? "annual" : "monthly", isTrial: false)
+                purchaseViaApple(productId: productId)
             } label: {
                 Text("Get Starter")
                     .font(.footnote).fontWeight(.semibold)
@@ -363,6 +373,7 @@ struct PaywallView: View {
                     .foregroundStyle(.white)
                     .cornerRadius(10)
             }
+            .disabled(storeKitService.purchaseInProgress)
         }
         .padding(16)
         .background(Color.cardBackground)
@@ -374,8 +385,8 @@ struct PaywallView: View {
     private var footerSection: some View {
         VStack(spacing: 14) {
             HStack(spacing: 20) {
-                Label("Cancel anytime", systemImage: "checkmark.circle")
-                Label("Stripe secured",  systemImage: "lock.shield")
+                Label("Cancel anytime",  systemImage: "checkmark.circle")
+                Label("Apple secured",   systemImage: "lock.shield")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -384,6 +395,14 @@ struct PaywallView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
+
+            Button {
+                Task { await storeKitService.restorePurchases() }
+            } label: {
+                Text("Restore Purchases")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
 
             Button {
                 authVM.signOut()
@@ -398,13 +417,15 @@ struct PaywallView: View {
 
     // MARK: - Helpers
 
-    private func checkout(plan: String, billing: String, isTrial: Bool) {
+    private func purchaseViaApple(productId: String) {
         Task {
-            if let url = await userVM.createCheckoutURL(plan: plan, billing: billing, isTrial: isTrial) {
-                checkoutURL = url
-                showSafari  = true
-            } else {
-                showError = true
+            do {
+                try await storeKitService.purchase(productId: productId)
+                // On success, userVM Firestore listener updates hasActiveAccess
+                // and the paywall dismisses automatically.
+            } catch {
+                purchaseError     = error.localizedDescription
+                showPurchaseError = true
             }
         }
     }

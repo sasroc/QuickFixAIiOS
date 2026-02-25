@@ -39,6 +39,11 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Take a photo of your repair issue so our AI can better diagnose the problem.</string>
 	<key>NSMicrophoneUsageDescription</key>

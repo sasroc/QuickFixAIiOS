@@ -2,17 +2,19 @@ import SwiftUI
 import SafariServices
 
 struct PricingView: View {
-    @Environment(UserViewModel.self)  private var userVM
-    @Environment(AuthViewModel.self)  private var authVM
-    @Environment(\.dismiss)          private var dismiss
+    @Environment(UserViewModel.self)    private var userVM
+    @Environment(AuthViewModel.self)    private var authVM
+    @Environment(StoreKitService.self)  private var storeKitService
+    @Environment(\.dismiss)            private var dismiss
 
     let startTrial: Bool
 
     @State private var billing: PlanCardView.BillingType = .monthly
-    @State private var checkoutURL: URL? = nil
-    @State private var showSafari      = false
-    @State private var showAuth        = false
-    @State private var showError       = false
+    @State private var checkoutURL: URL?   = nil   // kept for Stripe portal (web subscribers)
+    @State private var showSafari          = false
+    @State private var showAuth            = false
+    @State private var purchaseError: String? = nil
+    @State private var showPurchaseError   = false
 
     var body: some View {
         NavigationStack {
@@ -76,13 +78,17 @@ struct PricingView: View {
                     }
                     .padding(.horizontal)
 
-                    // Manage / Cancel
+                    // Manage subscription
                     if userVM.hasActiveAccess, authVM.isSignedIn {
                         Button {
-                            Task {
-                                if let url = await userVM.createPortalURL() {
-                                    checkoutURL = url
-                                    showSafari  = true
+                            if userVM.isAppleSubscriber {
+                                userVM.openAppleSubscriptionManagement()
+                            } else {
+                                Task {
+                                    if let url = await userVM.createPortalURL() {
+                                        checkoutURL = url
+                                        showSafari  = true
+                                    }
                                 }
                             }
                         } label: {
@@ -96,11 +102,26 @@ struct PricingView: View {
                     }
 
                     // Footer
-                    Text("Cancel anytime. No hidden fees. Payments securely processed by Stripe.")
-                        .font(.caption).foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 30)
-                        .padding(.bottom, 32)
+                    VStack(spacing: 10) {
+                        Text("Cancel anytime. No hidden fees. Payments securely processed by Apple.")
+                            .font(.caption).foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 30)
+
+                        Text("Subscriptions auto-renew unless cancelled at least 24 hours before the period end.")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 30)
+
+                        Button {
+                            Task { await storeKitService.restorePurchases() }
+                        } label: {
+                            Text("Restore Purchases")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.bottom, 32)
                 }
             }
             .background(Color.appBackground)
@@ -119,14 +140,21 @@ struct PricingView: View {
                 }
             }
             .overlay {
-                if userVM.isLoading {
-                    LoadingOverlayView(message: "Opening checkout…")
+                if storeKitService.purchaseInProgress {
+                    LoadingOverlayView(message: "Processing…")
                 }
             }
-            .alert("Checkout Error", isPresented: $showError) {
+            .alert("Purchase Error", isPresented: $showPurchaseError) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(userVM.errorMessage ?? "Unable to open checkout. Please try again.")
+                Text(purchaseError ?? "Unable to complete purchase. Please try again.")
+            }
+            .onChange(of: storeKitService.purchaseError) { _, error in
+                if let error {
+                    purchaseError     = error
+                    showPurchaseError = true
+                    storeKitService.purchaseError = nil
+                }
             }
         }
     }
@@ -134,22 +162,19 @@ struct PricingView: View {
     private func handlePlanSelection(planId: String) {
         guard authVM.isSignedIn else { showAuth = true; return }
         let billingStr = billing == .monthly ? "monthly" : "annual"
+        let productId  = AppConfig.StoreKitProducts.productId(plan: planId, billing: billingStr)
         Task {
-            if let url = await userVM.createCheckoutURL(
-                plan: planId,
-                billing: billingStr,
-                isTrial: startTrial && planId == "starter"
-            ) {
-                checkoutURL = url
-                showSafari  = true
-            } else {
-                showError = true
+            do {
+                try await storeKitService.purchase(productId: productId)
+            } catch {
+                purchaseError     = error.localizedDescription
+                showPurchaseError = true
             }
         }
     }
 }
 
-// MARK: - Safari wrapper
+// MARK: - Safari wrapper (also used by AccountSettingsView for Stripe portal)
 
 struct SafariView: UIViewControllerRepresentable {
     let url: URL
