@@ -21,6 +21,7 @@ final class UserViewModel {
     var plan: SubscriptionPlan   { profile?.plan ?? .none }
     var isAdmin: Bool            { profile?.isAdmin ?? false }
     var isAppleSubscriber: Bool  { profile?.isAppleSubscriber ?? false }
+    var blockedUsers: [String]   { profile?.blockedUsers ?? [] }
 
     // MARK: - Start/stop listening to user document
 
@@ -41,6 +42,19 @@ final class UserViewModel {
         listener = nil
         profile = nil
         profileLoaded = false
+    }
+
+    // MARK: - Block / unblock users
+
+    func blockUser(uid blockedUID: String) async {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return }
+        do {
+            try await Firestore.db.collection("users").document(currentUID).updateData([
+                "blockedUsers": FieldValue.arrayUnion([blockedUID])
+            ])
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     // MARK: - Update display name (delegated to AuthViewModel, but exposed here too)

@@ -44,11 +44,12 @@ final class CommunityViewModel {
 
     // MARK: - Filtered / Sorted
 
-    func filtered(category: String, myPostsOnly: Bool, uid: String?) -> [CommunityPost] {
+    func filtered(category: String, myPostsOnly: Bool, uid: String?, blockedUsers: [String] = []) -> [CommunityPost] {
         posts.filter { post in
             let categoryMatch = category == "all" || post.category == category
             let myPostMatch   = !myPostsOnly || post.authorId == uid
-            return categoryMatch && myPostMatch
+            let notBlocked    = !blockedUsers.contains(post.authorId)
+            return categoryMatch && myPostMatch && notBlocked
         }
     }
 
@@ -90,6 +91,11 @@ final class CommunityViewModel {
         authorDisplayName: String,
         authorId: String
     ) async -> Bool {
+        if containsFlaggedContent(title) || containsFlaggedContent(description) {
+            errorMessage = "Your post contains content that violates our community guidelines."
+            return false
+        }
+
         guard
             let beforeData = compressImage(beforeImage),
             let afterData  = compressImage(afterImage)
@@ -124,6 +130,21 @@ final class CommunityViewModel {
         }
     }
 
+    // MARK: - Report Post
+
+    func reportPost(postId: String, postTitle: String, reportedUserId: String, currentUID: String, reason: String) async {
+        let data: [String: Any] = [
+            "postId":           postId,
+            "postTitle":        postTitle,
+            "reportedUserId":   reportedUserId,
+            "reportedBy":       currentUID,
+            "reason":           reason,
+            "status":           "pending",
+            "timestamp":        FieldValue.serverTimestamp()
+        ]
+        try? await Firestore.db.collection("community_reports").addDocument(data: data)
+    }
+
     // MARK: - Delete Post
 
     func deletePost(postId: String) async {
@@ -132,6 +153,20 @@ final class CommunityViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    // MARK: - Content filtering
+
+    private static let blockedTerms: Set<String> = [
+        "porn", "pornography", "nude", "naked", "xxx",
+        "hate", "racist", "nigger", "faggot",
+        "fuck", "shit", "cunt", "motherfucker",
+        "kill yourself", "kys", "suicide"
+    ]
+
+    private func containsFlaggedContent(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return Self.blockedTerms.contains { lower.contains($0) }
     }
 
     // MARK: - Image compression

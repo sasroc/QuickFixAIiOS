@@ -11,6 +11,9 @@ struct CommunityView: View {
     @State private var showCreatePost    = false
     @State private var deleteTarget: CommunityPost? = nil
     @State private var showDeleteAlert   = false
+    @State private var reportTarget: CommunityPost? = nil
+    @State private var blockTarget: CommunityPost? = nil
+    @State private var showBlockAlert    = false
 
     private let allCategories = ["all"] + CommunityPost.categories
 
@@ -18,7 +21,8 @@ struct CommunityView: View {
         let filtered = communityVM.filtered(
             category: selectedCategory,
             myPostsOnly: myPostsOnly,
-            uid: authVM.currentUID
+            uid: authVM.currentUID,
+            blockedUsers: userVM.blockedUsers
         )
         return communityVM.sorted(filtered, by: sortOption)
     }
@@ -80,6 +84,13 @@ struct CommunityView: View {
                                     onDelete: {
                                         deleteTarget = post
                                         showDeleteAlert = true
+                                    },
+                                    onReport: {
+                                        reportTarget = post
+                                    },
+                                    onBlock: {
+                                        blockTarget = post
+                                        showBlockAlert = true
                                     }
                                 )
                             }
@@ -122,6 +133,19 @@ struct CommunityView: View {
             } message: {
                 Text("This post will be permanently removed from the community.")
             }
+            .alert("Block User?", isPresented: $showBlockAlert, presenting: blockTarget) { post in
+                Button("Block \(post.author)", role: .destructive) {
+                    Task { await userVM.blockUser(uid: post.authorId) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { post in
+                Text("You won't see posts from \(post.author) anymore. This will also notify our team to review the content.")
+            }
+            .sheet(item: $reportTarget) { post in
+                ReportPostSheet(post: post)
+                    .environment(communityVM)
+                    .environment(authVM)
+            }
         }
         .background(Color.appBackground)
     }
@@ -157,6 +181,8 @@ struct CommunityPostCard: View {
     let currentUID: String?
     let onLike: () -> Void
     let onDelete: () -> Void
+    let onReport: () -> Void
+    let onBlock: () -> Void
 
     @State private var expanded = false
 
@@ -229,6 +255,20 @@ struct CommunityPostCard: View {
                         Image(systemName: "trash")
                             .font(.subheadline)
                             .foregroundStyle(.red)
+                    }
+                } else {
+                    Menu {
+                        Button(role: .destructive, action: onReport) {
+                            Label("Report Post", systemImage: "flag")
+                        }
+                        Button(role: .destructive, action: onBlock) {
+                            Label("Block \(post.author)", systemImage: "nosign")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
                     }
                 }
             }
