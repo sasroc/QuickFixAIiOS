@@ -1,6 +1,7 @@
 import SwiftUI
 import GoogleSignIn
 import GoogleSignInSwift
+import AuthenticationServices
 
 struct AuthView: View {
     @Environment(AuthViewModel.self) private var authVM
@@ -38,9 +39,10 @@ struct AuthView: View {
                 VStack(spacing: 24) {
                     // Header
                     VStack(spacing: 8) {
-                        Image(systemName: "wrench.and.screwdriver.fill")
-                            .font(.system(size: 48))
-                            .foregroundStyle(Color.brand)
+                        Image("AppLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 120, height: 80)
                         Text(isLogin ? "Welcome Back" : "Create Account")
                             .font(.title).fontWeight(.bold)
                         Text(isLogin ? "Sign in to continue fixing things" : "Join thousands of homeowners")
@@ -179,6 +181,19 @@ struct AuthView: View {
                     GoogleSignInCustomButton {
                         Task { await authVM.signInWithGoogle() }
                     }
+                    .padding(.horizontal)
+
+                    // Apple Sign-In
+                    SignInWithAppleButton(.continue) { request in
+                        authVM.prepareAppleSignInRequest(request)
+                    } onCompletion: { result in
+                        Task { await authVM.handleAppleSignInResult(result) }
+                    }
+                    .signInWithAppleButtonStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .cornerRadius(4)
+                    .disabled(authVM.isLoading)
                     .padding(.horizontal)
 
                     // Forgot password

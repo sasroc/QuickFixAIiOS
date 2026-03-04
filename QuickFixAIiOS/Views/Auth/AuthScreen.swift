@@ -1,5 +1,6 @@
 import SwiftUI
 import GoogleSignIn
+import AuthenticationServices
 
 /// Full-screen auth gate shown to unauthenticated users.
 /// Shows branding + two sign-in options; email form presented as a sheet.
@@ -69,26 +70,15 @@ struct AuthScreen: View {
                     }
                     .disabled(authVM.isLoading)
 
-                    Button {
-                        Task { await authVM.signInWithApple() }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "apple.logo")
-                                .font(.title3)
-                                .frame(width: 40, height: 40)
-                            Text("Continue with Apple")
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.white)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(.white.opacity(0.18))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(.white.opacity(0.35), lineWidth: 1.5)
-                        )
-                        .cornerRadius(14)
+                    SignInWithAppleButton(.continue) { request in
+                        authVM.prepareAppleSignInRequest(request)
+                    } onCompletion: { result in
+                        Task { await authVM.handleAppleSignInResult(result) }
                     }
+                    .signInWithAppleButtonStyle(.whiteOutline)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .cornerRadius(14)
                     .disabled(authVM.isLoading)
 
                     Button {

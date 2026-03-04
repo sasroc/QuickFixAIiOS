@@ -52,6 +52,12 @@ final class UserViewModel {
             try await Firestore.db.collection("users").document(currentUID).updateData([
                 "blockedUsers": FieldValue.arrayUnion([blockedUID])
             ])
+            try? await Firestore.db.collection("community_reports").addDocument(data: [
+                "type":        "block",
+                "reportedBy":  currentUID,
+                "blockedUser": blockedUID,
+                "timestamp":   FieldValue.serverTimestamp()
+            ])
         } catch {
             errorMessage = error.localizedDescription
         }

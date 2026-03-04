@@ -56,7 +56,7 @@ final class StoreKitService {
             // jwsRepresentation is on VerificationResult<Transaction>, not Transaction.
             let jws = verification.jwsRepresentation
             if case .verified(let transaction) = verification {
-                await verifyWithBackend(jws: jws)
+                await verifyWithBackend(jws: jws, productId: transaction.productID)
                 await transaction.finish()
             }
         case .userCancelled, .pending:
@@ -86,7 +86,7 @@ final class StoreKitService {
             for await result in Transaction.updates {
                 let jws = result.jwsRepresentation
                 guard case .verified(let transaction) = result else { continue }
-                await self?.verifyWithBackend(jws: jws)
+                await self?.verifyWithBackend(jws: jws, productId: transaction.productID)
                 await transaction.finish()
             }
         }
@@ -97,16 +97,19 @@ final class StoreKitService {
     /// Sends the signed JWS transaction to the backend for server-side verification
     /// and Firestore update. The UserViewModel's real-time listener picks up
     /// the Firestore change automatically — no manual state update needed here.
-    private func verifyWithBackend(jws: String) async {
+    private func verifyWithBackend(jws: String, productId: String) async {
         do {
             try await APIService.shared.post(
                 "/api/apple/verify-purchase",
-                body: ["signedTransactionInfo": jws],
+                body: [
+                    "signedTransactionInfo": jws,
+                    "uid": Auth.auth().currentUser?.uid ?? "",
+                    "productId": productId
+                ],
                 requiresAuth: true
             )
         } catch {
-            // Non-fatal: Apple's server notifications will also update Firestore
-            // if the immediate backend call fails.
+            purchaseError = "Subscription activated with Apple, but access may take a moment. Tap 'Restore Purchases' if the app doesn't unlock."
         }
     }
 }
