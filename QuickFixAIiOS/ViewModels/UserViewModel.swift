@@ -21,7 +21,12 @@ final class UserViewModel {
     var plan: SubscriptionPlan   { profile?.plan ?? .none }
     var isAdmin: Bool            { profile?.isAdmin ?? false }
     var isAppleSubscriber: Bool  { profile?.isAppleSubscriber ?? false }
-    var blockedUsers: [String]   { profile?.blockedUsers ?? [] }
+    // Optimistic local set — merged with Firestore profile so blocks take effect instantly
+    private var locallyBlockedUsers: Set<String> = []
+    var blockedUsers: [String] {
+        let fromProfile = Set(profile?.blockedUsers ?? [])
+        return Array(fromProfile.union(locallyBlockedUsers))
+    }
 
     // MARK: - Start/stop listening to user document
 
@@ -42,22 +47,29 @@ final class UserViewModel {
         listener = nil
         profile = nil
         profileLoaded = false
+        locallyBlockedUsers = []
     }
 
     // MARK: - Block / unblock users
 
-    func blockUser(uid blockedUID: String) async {
+    func blockUser(uid blockedUID: String, postId: String? = nil, postTitle: String? = nil) async {
+        // Instant optimistic update — posts vanish from feed before Firestore confirms
+        locallyBlockedUsers.insert(blockedUID)
+
         guard let currentUID = Auth.auth().currentUser?.uid else { return }
         do {
             try await Firestore.db.collection("users").document(currentUID).updateData([
                 "blockedUsers": FieldValue.arrayUnion([blockedUID])
             ])
-            try? await Firestore.db.collection("community_reports").addDocument(data: [
+            var reportData: [String: Any] = [
                 "type":        "block",
                 "reportedBy":  currentUID,
                 "blockedUser": blockedUID,
                 "timestamp":   FieldValue.serverTimestamp()
-            ])
+            ]
+            if let postId    = postId    { reportData["postId"]    = postId }
+            if let postTitle = postTitle { reportData["postTitle"] = postTitle }
+            try? await Firestore.db.collection("community_reports").addDocument(data: reportData)
         } catch {
             errorMessage = error.localizedDescription
         }

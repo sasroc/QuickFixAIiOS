@@ -135,7 +135,7 @@ struct CommunityView: View {
             }
             .alert("Block User?", isPresented: $showBlockAlert, presenting: blockTarget) { post in
                 Button("Block \(post.author)", role: .destructive) {
-                    Task { await userVM.blockUser(uid: post.authorId) }
+                    Task { await userVM.blockUser(uid: post.authorId, postId: post.id, postTitle: post.title) }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: { post in
