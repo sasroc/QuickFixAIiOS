@@ -11,6 +11,7 @@ struct InputFormView: View {
     @State private var selectedPhoto: PhotosPickerItem? = nil
     @State private var selectedImage: UIImage? = nil
     @State private var isRecording = false
+    @State private var pulse = false
     private let recorder = SpeechRecorder()
     @State private var showCamera    = false
 
@@ -63,41 +64,108 @@ struct InputFormView: View {
                 .padding(.horizontal)
                 .padding(.top, 16)
 
-                // Text input
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Description").font(.headline)
+                // Text input card
+                VStack(alignment: .leading, spacing: 0) {
 
+                    // Card header: label + voice button
+                    HStack(alignment: .center) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "text.bubble.fill")
+                                .foregroundStyle(Color.brand)
+                                .font(.subheadline)
+                            Text("Describe the Problem")
+                                .font(.subheadline).fontWeight(.semibold)
+                        }
+                        Spacer()
+                        Button { toggleVoice() } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                                    .font(.caption.weight(.bold))
+                                Text(isRecording ? "Stop" : "Voice")
+                                    .font(.caption).fontWeight(.semibold)
+                            }
+                            .foregroundStyle(isRecording ? .red : Color.brand)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 10)
+                            .background(isRecording ? Color.red.opacity(0.1) : Color.brand.opacity(0.08))
+                            .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 14)
+                    .padding(.bottom, 10)
+
+                    Divider()
+
+                    // Text editor with overlay placeholder
                     ZStack(alignment: .topLeading) {
                         if description.isEmpty {
                             Text("e.g. My kitchen faucet is dripping slowly, it's been leaking for 2 days...")
                                 .foregroundStyle(.tertiary)
-                                .padding(12)
+                                .font(.body)
+                                .padding(.horizontal, 14)
+                                .padding(.top, 12)
+                                .allowsHitTesting(false)
                         }
                         TextEditor(text: $description)
-                            .frame(minHeight: 120)
-                            .padding(8)
+                            .scrollContentBackground(.hidden)
+                            .font(.body)
+                            .frame(minHeight: 130)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
                             .focused($isFocused)
                     }
-                    .background(Color.inputBackground)
-                    .cornerRadius(10)
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(UIColor.quaternaryLabel), lineWidth: 1))
 
-                    // Voice input button
-                    Button {
-                        toggleVoice()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: isRecording ? "stop.circle.fill" : "mic.fill")
-                                .foregroundStyle(isRecording ? .red : .brand)
-                            Text(isRecording ? "Stop Recording" : "Use Voice Input")
-                                .font(.subheadline).fontWeight(.medium)
+                    Divider()
+
+                    // Footer: hint + character count
+                    HStack {
+                        if isRecording {
+                            HStack(spacing: 5) {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 6, height: 6)
+                                    .opacity(pulse ? 0.25 : 1)
+                                    .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true), value: pulse)
+                                    .onAppear { pulse = true }
+                                    .onDisappear { pulse = false }
+                                Text("Listening…")
+                                    .font(.caption).foregroundStyle(.red)
+                            }
+                        } else {
+                            Text("More detail = better results")
+                                .font(.caption).foregroundStyle(.tertiary)
                         }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 14)
-                        .background(isRecording ? Color.red.opacity(0.1) : Color.brand.opacity(0.1))
-                        .cornerRadius(8)
+                        Spacer()
+                        if !description.isEmpty {
+                            Text("\(description.count)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.tertiary)
+                        }
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                 }
+                .background(Color.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            isFocused
+                                ? AnyShapeStyle(LinearGradient(
+                                    colors: [Color.brandBlue, Color.brand],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing))
+                                : AnyShapeStyle(Color(UIColor.quaternaryLabel)),
+                            lineWidth: isFocused ? 2 : 1
+                        )
+                )
+                .shadow(
+                    color: isFocused ? Color.brandBlue.opacity(0.12) : Color.black.opacity(0.04),
+                    radius: isFocused ? 10 : 3,
+                    y: 2
+                )
+                .animation(.easeInOut(duration: 0.2), value: isFocused)
                 .padding(.horizontal)
 
                 // Image upload
