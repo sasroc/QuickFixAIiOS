@@ -40,31 +40,33 @@ Open `QuickFixAIiOS.xcodeproj` in Xcode for day-to-day development. **Never hand
 
 **Pattern:** MVVM with SwiftUI, `@Observable` macro (iOS 17+), environment-injected ViewModels.
 
-**Entry point:** `QuickFixAIiOSApp.swift` configures Firebase, creates all ViewModels as `@State`, injects them via `.environment()`, and starts/stops Firestore listeners when auth state changes.
+**Entry point:** `QuickFixAIiOSApp.swift` configures Firebase, creates all ViewModels and `StoreKitService` as `@State`, injects them via `.environment()`, and starts/stops Firestore listeners when auth state changes. `AuthViewModel.init()` is intentionally empty — `startListening()` is called from `.task {}` in the app body, after Firebase is guaranteed to be configured via `AppDelegate`.
 
 **Navigation:**
 - `RootView.swift` is the navigation switch: `authVM.isSignedIn` → `MainTabView`, otherwise → `LandingView` (full marketing page), both with opacity transitions
-- `MainTabView` — 4 tabs: Repair, History, Community, Account
-- Stripe checkout opens in `SFSafariViewController`; payment success detected via `quickfixai://payment-success` deep link (URL scheme registered in `project.yml`)
+- `MainTabView` — 3 tabs: Repair, History, Account
+- In-app purchases use StoreKit 2 natively (no browser). The `quickfixai://` URL scheme and `SFSafariViewController` remain for any legacy Stripe web flows.
 
 **ViewModels** (all `@MainActor @Observable`):
 | ViewModel | Responsibility |
 |---|---|
-| `AuthViewModel` | Firebase Auth (email/password, Google Sign-In), sign-out, delete account |
+| `AuthViewModel` | Firebase Auth (email/password, Google Sign-In, Sign in with Apple), sign-out, delete account |
 | `UserViewModel` | Real-time Firestore listener on `users/{uid}`, Stripe checkout/portal URLs, refund |
 | `RepairViewModel` | POST `/api/ai/analyze`, image compression, save to Firestore `repairs/` |
 | `HistoryViewModel` | Real-time Firestore listener on `repairs/` for current user |
-| `CommunityViewModel` | Real-time listener on `community_posts/`, likes, create/delete posts |
 
 **Key Services:**
 - `APIService` (singleton) — async/await HTTP client with methods `post<T>()`, `get<T>()`, `patch<T>()`, `delete()`, `postMultipart()`. Attaches Firebase JWT Bearer token automatically; `requiresAuth: true` fails without token, `false` attaches opportunistically. 90s timeout.
 - `FirestoreService.swift` — only contains `Timestamp: @retroactive FirestoreTimestampProtocol` conformance, bridging Firebase timestamps to Models without importing Firebase there.
+- `StoreKitService` (`@MainActor @Observable`) — StoreKit 2 IAP: loads products from App Store on init, exposes `products: [Product]`, handles `purchase(productId:)`, `restorePurchases()`, and a lifetime `Transaction.updates` listener. On each verified transaction, calls `/api/apple/verify-purchase` then calls `transaction.finish()`. Injected as an environment object from `QuickFixAIiOSApp`.
 
-**Firestore listener lifecycle:** `App.onChange(authVM.firebaseUser)` calls `userVM.startListening(uid)`, `historyVM.startListening()`, `communityVM.startListening()` on sign-in and their corresponding `stopListening()` on sign-out. Use `nonisolated(unsafe) var listenerHandle` for `ListenerRegistration` stored in `@MainActor` classes so `deinit` can remove them.
+**Firestore listener lifecycle:** `App.onChange(authVM.firebaseUser)` calls `userVM.startListening(uid)` and `historyVM.startListening()` on sign-in and their corresponding `stopListening()` on sign-out. Use `nonisolated(unsafe) var listenerHandle` for `ListenerRegistration` stored in `@MainActor` classes so `deinit` can remove them.
 
-**Firestore collections:** `users/{uid}`, `repairs/{repairId}`, `community_posts/{postId}`, `feedback/{feedbackId}`
+**Firestore collections:** `users/{uid}`, `repairs/{repairId}`, `feedback/{feedbackId}`
 
-**Image handling:** Compressed to 800px max width, 0.7 JPEG quality before sending. Repair images are sent to the backend as `data:image/jpeg;base64,...` data URIs. Community post before/after images are stored as base64 strings directly in Firestore (no Firebase Storage).
+**Image handling:** Compressed to 800px max width, 0.7 JPEG quality before sending. Repair images are sent to the backend as `data:image/jpeg;base64,...` data URIs.
+
+**Sign in with Apple:** `AuthViewModel.prepareAppleSignInRequest(_:)` and `handleAppleSignInResult(_:)` handle the ASAuthorization flow. Uses `SignInWithAppleButton` (SwiftUI native) in auth views.
 
 ## Backend API (existing Railway deployment)
 
@@ -78,6 +80,7 @@ All calls go to `AppConfig.apiBaseURL`. Key endpoints:
 | `POST /api/stripe/create-portal-session` | Required | Stripe customer portal URL |
 | `POST /api/stripe/refund` | Required | Full refund (24-hr, 0-credit policy) |
 | `GET /api/stripe/refund-eligibility/:uid` | Required | Check refund eligibility |
+| `POST /api/apple/verify-purchase` | Required | Verify StoreKit JWS transaction server-side; updates Firestore subscription fields |
 | `POST /api/support/contact` | None | Send support email |
 | `POST /api/feedback/submit` | None | Multipart feedback with screenshots |
 | `POST /api/welcome` | None | Send welcome email |
@@ -87,8 +90,10 @@ All calls go to `AppConfig.apiBaseURL`. Key endpoints:
 - `SubscriptionPlan`: `.none` (3 credits), `.starter` (10), `.pro` (25), `.premium` (100)
 - History caps: Starter=10, Pro=50, Premium=unlimited
 - Trial: 5-day Starter, one-time per account (`wasOnTrial` prevents reuse)
-- Lifetime access: `hasLifetimeAccess: true` → behaves like Starter, immune to Stripe webhooks
-- Credits reset is handled by Stripe webhook on the backend; frontend reads live Firestore data
+- Lifetime access: `hasLifetimeAccess: true` → behaves like Starter, immune to Stripe/Apple webhooks
+- Credits reset is handled server-side (Stripe webhook or Apple server notification); frontend reads live Firestore data
+- `paymentProvider` field (`"stripe"` | `"apple"`) on `UserProfile` determines which management UI to show; `UserViewModel.isAppleSubscriber` exposes this. Apple subscribers manage via App Store; Stripe subscribers see the portal.
+- **Local IAP testing:** `Products.storekit` (root of repo) is the StoreKit configuration file. In Xcode → scheme editor → Run → Options → StoreKit Configuration, point to this file to test purchases without hitting App Store Connect.
 
 ## Color Convention
 
@@ -99,10 +104,11 @@ Colors are defined in `Extensions/Color+Extensions.swift` and match the webapp C
 | `Color.brandBlue` | `#3b82f6` | Hero gradient start, step number circles |
 | `Color.brand` | `#20c997` (teal) | Buttons, badges, all interactive elements |
 | `Color.brandGreen` / `Color.success` | `#10b981` | Checkmarks, success states |
-| `Color.appBackground` | `#f3f4f6` | Page background (light) |
+| `Color.appBackground` | `#f3f4f6` / `#111827` | Page background (adaptive light/dark) |
 | `Color.cardBackground` | white / `#1f2937` | Cards (adaptive light/dark) |
 
 - Always use `Color.brand` explicitly (not shorthand `.brand`) in `foregroundStyle()` — Swift cannot infer the type
+- Always add `.background(Color.appBackground)` to every `ScrollView` and `NavigationStack` — without it, dark mode shows black behind content
 - `Color.cardBackground` / `Color.inputBackground` use `UIColor` adaptive initializers (requires `import UIKit` — SourceKit may show a false-positive "No such module UIKit" warning that does not affect compilation)
 - `Color.brandGradient` (blue→teal) for hero sections; `Color.ctaGradient` for CTA buttons
 

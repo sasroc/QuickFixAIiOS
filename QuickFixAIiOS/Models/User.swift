@@ -75,7 +75,6 @@ struct UserProfile: Equatable {
     var createdAt: Date?
     var paymentProvider: String?             // "stripe" | "apple" | nil
     var appleOriginalTransactionId: String?  // set by backend on IAP verify
-    var blockedUsers: [String]               // UIDs this user has blocked
 
     // MARK: Computed
 
@@ -110,7 +109,6 @@ struct UserProfile: Equatable {
         self.stripeSubscriptionId       = data["stripeSubscriptionId"] as? String
         self.paymentProvider            = data["paymentProvider"] as? String
         self.appleOriginalTransactionId = data["appleOriginalTransactionId"] as? String
-        self.blockedUsers               = data["blockedUsers"] as? [String] ?? []
 
         self.subscriptionStatus = SubscriptionStatus(rawValue: data["subscriptionStatus"] as? String ?? "inactive") ?? .inactive
         self.plan               = SubscriptionPlan(rawValue: data["plan"] as? String ?? "none") ?? .none

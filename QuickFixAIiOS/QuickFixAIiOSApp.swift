@@ -44,7 +44,6 @@ struct QuickFixAIiOSApp: App {
     @State private var userVM        = UserViewModel()
     @State private var repairVM      = RepairViewModel()
     @State private var historyVM     = HistoryViewModel()
-    @State private var communityVM   = CommunityViewModel()
     @State private var storeKitService = StoreKitService()
 
     var body: some Scene {
@@ -54,7 +53,6 @@ struct QuickFixAIiOSApp: App {
                 .environment(userVM)
                 .environment(repairVM)
                 .environment(historyVM)
-                .environment(communityVM)
                 .environment(storeKitService)
                 // Start the Firebase Auth listener only after Firebase is configured.
                 // .task runs after applicationDidFinishLaunchingWithOptions, so it's safe.
@@ -68,11 +66,9 @@ struct QuickFixAIiOSApp: App {
                     if let user {
                         userVM.startListening(uid: user.uid)
                         historyVM.startListening()
-                        communityVM.startListening()
                     } else {
                         userVM.stopListening()
                         historyVM.stopListening()
-                        communityVM.stopListening()
                     }
                 }
         }

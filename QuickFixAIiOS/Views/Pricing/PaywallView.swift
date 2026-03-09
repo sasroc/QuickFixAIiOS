@@ -159,7 +159,6 @@ struct PaywallView: View {
                 featureRow("Step-by-step repair guides",       icon: "list.bullet.clipboard.fill")
                 featureRow("Photo-based AI diagnosis",         icon: "camera.fill")
                 featureRow("10 saved repairs in history",      icon: "clock.fill")
-                featureRow("Community access",                 icon: "person.3.fill")
             }
 
             // CTA
