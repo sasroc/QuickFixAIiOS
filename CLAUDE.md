@@ -43,9 +43,10 @@ Open `QuickFixAIiOS.xcodeproj` in Xcode for day-to-day development. **Never hand
 **Entry point:** `QuickFixAIiOSApp.swift` configures Firebase, creates all ViewModels and `StoreKitService` as `@State`, injects them via `.environment()`, and starts/stops Firestore listeners when auth state changes. `AuthViewModel.init()` is intentionally empty — `startListening()` is called from `.task {}` in the app body, after Firebase is guaranteed to be configured via `AppDelegate`.
 
 **Navigation:**
-- `RootView.swift` is the navigation switch: `authVM.isSignedIn` → `MainTabView`, otherwise → `LandingView` (full marketing page), both with opacity transitions
+- `RootView.swift` navigation states: not signed in → `LandingView`; signed in + profile loading → gradient spinner; signed in + no active access → `PaywallView`; signed in + active access → `MainTabView`. All transitions use opacity animation.
+- `LandingView` has a "Get Started" button that presents `AuthScreen` (full-screen branded gate). Tapping "Continue with Email" on `AuthScreen` opens `AuthView` (email/password form) as a sheet. Both views also offer Google and Sign in with Apple.
 - `MainTabView` — 3 tabs: Repair, History, Account
-- In-app purchases use StoreKit 2 natively (no browser). The `quickfixai://` URL scheme and `SFSafariViewController` remain for any legacy Stripe web flows.
+- In-app purchases use StoreKit 2 natively (no browser). The `quickfixai://payment-success` deep link and `SFSafariViewController` (via `SafariView` wrapper in `PricingView.swift`) remain for Stripe web flows.
 
 **ViewModels** (all `@MainActor @Observable`):
 | ViewModel | Responsibility |
@@ -94,6 +95,7 @@ All calls go to `AppConfig.apiBaseURL`. Key endpoints:
 - Credits reset is handled server-side (Stripe webhook or Apple server notification); frontend reads live Firestore data
 - `paymentProvider` field (`"stripe"` | `"apple"`) on `UserProfile` determines which management UI to show; `UserViewModel.isAppleSubscriber` exposes this. Apple subscribers manage via App Store; Stripe subscribers see the portal.
 - **Local IAP testing:** `Products.storekit` (root of repo) is the StoreKit configuration file. In Xcode → scheme editor → Run → Options → StoreKit Configuration, point to this file to test purchases without hitting App Store Connect.
+- **Product IDs:** `AppConfig.StoreKitProducts` enum holds all 6 IDs (starter/pro/premium × monthly/annual). Use `AppConfig.productId(plan:billing:)` to look them up; never hardcode product IDs in views.
 
 ## Color Convention
 
@@ -147,7 +149,13 @@ Each model has two init patterns and a Firestore write helper:
 
 **`Views/Common/SubscriptionGateView`** — generic wrapper that shows content for subscribed users or a locked paywall prompt otherwise. Wrap any gated feature content with `SubscriptionGateView { ... }`.
 
+**`Views/Repair/InputFormView.swift`** — contains a nested `final class SpeechRecorder` that uses `SFSpeechRecognizer` + `AVAudioEngine` for real-time voice-to-text transcription of the repair description. Also contains a `CameraPicker` `UIViewControllerRepresentable`. Both require Info.plist permissions already set in `project.yml`: `NSMicrophoneUsageDescription`, `NSSpeechRecognitionUsageDescription`, `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`.
+
 **`AppConfig.plans`** — the source of truth for all plan pricing, credit counts, and feature lists shown in `PaywallView` and `PricingView`. Update pricing here, not in views.
+
+## Tests
+
+Tests use the **Swift Testing** framework (`import Testing`, `@Suite`, `@Test`, `#expect`) — not XCTest. Test files live in `QuickFixAIiOSTests/`. The single test suite name for `-only-testing:` is `QuickFixAIiOSTests/QuickFixAIiOSTests`.
 
 ## SPM Dependencies
 

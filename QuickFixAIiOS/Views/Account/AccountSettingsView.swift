@@ -47,6 +47,7 @@ struct AccountSettingsView: View {
                 supportSection
                 legalSection
                 dangerSection
+                versionSection
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Account")
@@ -274,6 +275,24 @@ struct AccountSettingsView: View {
             Button(role: .destructive) { showDeleteAlert = true } label: {
                 Label("Delete Account", systemImage: "trash")
             }
+        }
+    }
+
+    // MARK: - Version Footer
+
+    private var appVersion: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+        return "QuickFix AI  •  v\(v) (\(b))"
+    }
+
+    private var versionSection: some View {
+        Section {
+            Text(appVersion)
+                .font(.footnote)
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .listRowBackground(Color.clear)
         }
     }
 
