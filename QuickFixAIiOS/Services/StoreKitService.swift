@@ -1,115 +1,108 @@
-import StoreKit
+import RevenueCat
 import FirebaseAuth
+import FirebaseFirestore
 
 @MainActor
 @Observable
-final class StoreKitService {
+final class RevenueCatService {
 
     // MARK: - State
 
-    var products: [Product] = []
     var purchaseInProgress = false
     var purchaseError: String? = nil
 
-    // Runs for the app's lifetime — picks up renewals, family-sharing grants,
-    // and transactions that complete while the app was backgrounded.
-    nonisolated(unsafe) private var updateListenerTask: Task<Void, Never>?
-
-    // MARK: - Init / Deinit
-
-    init() {
-        updateListenerTask = listenForTransactionUpdates()
-        Task { await loadProducts() }
-    }
-
-    deinit {
-        updateListenerTask?.cancel()
-    }
-
-    // MARK: - Load Products
-
-    func loadProducts() async {
-        do {
-            let fetched = try await Product.products(for: AppConfig.StoreKitProducts.all)
-            products = fetched.sorted { $0.price < $1.price }
-        } catch {
-            // Products aren't available until configured in App Store Connect.
-            // This is expected in development — no user-facing action needed.
-        }
-    }
-
     // MARK: - Purchase
 
-    /// Initiates a StoreKit purchase for the given product ID.
-    /// Throws if StoreKit reports an error. On success, verifies the
-    /// transaction with the backend and finishes it.
     func purchase(productId: String) async throws {
-        guard let product = products.first(where: { $0.id == productId }) else { return }
+        let storeProducts: [StoreProduct] = await withCheckedContinuation { continuation in
+            Purchases.shared.getProducts([productId]) { products in
+                continuation.resume(returning: products)
+            }
+        }
+        guard let product = storeProducts.first else { return }
 
         purchaseInProgress = true
         defer { purchaseInProgress = false }
 
-        let result = try await product.purchase()
-
-        switch result {
-        case .success(let verification):
-            // jwsRepresentation is on VerificationResult<Transaction>, not Transaction.
-            let jws = verification.jwsRepresentation
-            if case .verified(let transaction) = verification {
-                await verifyWithBackend(jws: jws, productId: transaction.productID)
-                await transaction.finish()
+        let (_, customerInfo, userCancelled): (RevenueCat.StoreTransaction?, CustomerInfo?, Bool) =
+            try await withCheckedThrowingContinuation { continuation in
+                Purchases.shared.purchase(product: product) { transaction, customerInfo, error, userCancelled in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: (transaction, customerInfo, userCancelled))
+                    }
+                }
             }
-        case .userCancelled, .pending:
-            break
-        @unknown default:
-            break
-        }
+
+        guard !userCancelled else { return }
+        await syncToFirestore(customerInfo: customerInfo, productId: productId)
     }
 
     // MARK: - Restore Purchases
 
-    /// Re-syncs verified transactions from the App Store.
-    /// Any outstanding verified transactions flow through the update listener
-    /// and get verified with the backend automatically.
     func restorePurchases() async {
         do {
-            try await AppStore.sync()
+            let customerInfo: CustomerInfo? = try await withCheckedThrowingContinuation { continuation in
+                Purchases.shared.restorePurchases { info, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: info)
+                    }
+                }
+            }
+            await syncToFirestore(customerInfo: customerInfo, productId: nil)
         } catch {
             purchaseError = "Restore failed: \(error.localizedDescription)"
         }
     }
 
-    // MARK: - Transaction Update Listener
+    // MARK: - Firestore Sync
 
-    private func listenForTransactionUpdates() -> Task<Void, Never> {
-        Task { [weak self] in
-            for await result in Transaction.updates {
-                let jws = result.jwsRepresentation
-                guard case .verified(let transaction) = result else { continue }
-                await self?.verifyWithBackend(jws: jws, productId: transaction.productID)
-                await transaction.finish()
+    /// RC verifies the purchase with Apple internally. We use the resulting
+    /// CustomerInfo to update Firestore directly so the UserViewModel listener
+    /// picks up the change and dismisses the paywall immediately.
+    private func syncToFirestore(customerInfo: CustomerInfo?, productId: String?) async {
+        guard let uid = Auth.auth().currentUser?.uid,
+              let info = customerInfo,
+              !info.entitlements.active.isEmpty else { return }
+
+        let activeProductId = productId ?? info.activeSubscriptions.first
+        let plan = Self.plan(from: activeProductId)
+        let planInfo = plan.flatMap { AppConfig.plan(for: $0) }
+        let entitlement = info.entitlements.active.values.first
+        let isTrial = entitlement?.periodType == .trial
+
+        var data: [String: Any] = [
+            "subscriptionStatus": isTrial ? "trialing" : "active",
+            "paymentProvider": "apple",
+            "updatedAt": FieldValue.serverTimestamp()
+        ]
+        if let plan { data["plan"] = plan }
+        if let credits = planInfo?.credits { data["credits"] = credits }
+        if isTrial {
+            data["wasOnTrial"] = true
+            if let exp = entitlement?.expirationDate {
+                data["trialEndDate"] = Timestamp(date: exp)
             }
+        }
+
+        do {
+            try await Firestore.firestore()
+                .collection("users")
+                .document(uid)
+                .updateData(data)
+        } catch {
+            purchaseError = "Purchase successful! If the app doesn't unlock shortly, tap 'Restore Purchases'."
         }
     }
 
-    // MARK: - Backend Verification
-
-    /// Sends the signed JWS transaction to the backend for server-side verification
-    /// and Firestore update. The UserViewModel's real-time listener picks up
-    /// the Firestore change automatically — no manual state update needed here.
-    private func verifyWithBackend(jws: String, productId: String) async {
-        do {
-            try await APIService.shared.post(
-                "/api/apple/verify-purchase",
-                body: [
-                    "signedTransactionInfo": jws,
-                    "uid": Auth.auth().currentUser?.uid ?? "",
-                    "productId": productId
-                ],
-                requiresAuth: true
-            )
-        } catch {
-            purchaseError = "Subscription activated with Apple, but access may take a moment. Tap 'Restore Purchases' if the app doesn't unlock."
-        }
+    private static func plan(from productId: String?) -> String? {
+        guard let id = productId else { return nil }
+        if id.contains("starter") { return "starter" }
+        if id.contains("pro") { return "pro" }
+        if id.contains("premium") { return "premium" }
+        return nil
     }
 }

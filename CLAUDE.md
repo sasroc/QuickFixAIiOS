@@ -59,7 +59,7 @@ Open `QuickFixAIiOS.xcodeproj` in Xcode for day-to-day development. **Never hand
 **Key Services:**
 - `APIService` (singleton) — async/await HTTP client with methods `post<T>()`, `get<T>()`, `patch<T>()`, `delete()`, `postMultipart()`. Attaches Firebase JWT Bearer token automatically; `requiresAuth: true` fails without token, `false` attaches opportunistically. 90s timeout.
 - `FirestoreService.swift` — only contains `Timestamp: @retroactive FirestoreTimestampProtocol` conformance, bridging Firebase timestamps to Models without importing Firebase there.
-- `StoreKitService` (`@MainActor @Observable`) — StoreKit 2 IAP: loads products from App Store on init, exposes `products: [Product]`, handles `purchase(productId:)`, `restorePurchases()`, and a lifetime `Transaction.updates` listener. On each verified transaction, calls `/api/apple/verify-purchase` then calls `transaction.finish()`. Injected as an environment object from `QuickFixAIiOSApp`.
+- `RevenueCatService` (`@MainActor @Observable`, file: `Services/StoreKitService.swift`) — wraps RevenueCat SDK for IAP. Exposes `purchase(productId:)` and `restorePurchases()`. On a successful purchase, calls `/api/apple/verify-purchase` with the JWS token from `result.transaction?.jwsRepresentation` to keep Firestore in sync (until RC webhooks replace this). RC is configured in `AppDelegate`; user is identified via `Purchases.shared.logIn(uid)` / `logOut()` in `QuickFixAIiOSApp` when Firebase auth state changes. Injected as an environment object.
 
 **Firestore listener lifecycle:** `App.onChange(authVM.firebaseUser)` calls `userVM.startListening(uid)` and `historyVM.startListening()` on sign-in and their corresponding `stopListening()` on sign-out. Use `nonisolated(unsafe) var listenerHandle` for `ListenerRegistration` stored in `@MainActor` classes so `deinit` can remove them.
 
@@ -95,7 +95,7 @@ All calls go to `AppConfig.apiBaseURL`. Key endpoints:
 - Credits reset is handled server-side (Stripe webhook or Apple server notification); frontend reads live Firestore data
 - `paymentProvider` field (`"stripe"` | `"apple"`) on `UserProfile` determines which management UI to show; `UserViewModel.isAppleSubscriber` exposes this. Apple subscribers manage via App Store; Stripe subscribers see the portal.
 - **Local IAP testing:** `Products.storekit` (root of repo) is the StoreKit configuration file. In Xcode → scheme editor → Run → Options → StoreKit Configuration, point to this file to test purchases without hitting App Store Connect.
-- **Product IDs:** `AppConfig.StoreKitProducts` enum holds all 6 IDs (starter/pro/premium × monthly/annual). Use `AppConfig.productId(plan:billing:)` to look them up; never hardcode product IDs in views.
+- **Product IDs:** `AppConfig.StoreKitProducts` enum holds all 6 IDs (starter/pro/premium × monthly/annual). Use `AppConfig.StoreKitProducts.productId(plan:billing:)` to look them up; never hardcode product IDs in views.
 
 ## Color Convention
 
@@ -161,3 +161,4 @@ Tests use the **Swift Testing** framework (`import Testing`, `@Suite`, `@Test`, 
 
 - `firebase-ios-sdk` v11+ → FirebaseAuth, FirebaseFirestore, FirebaseAnalytics
 - `GoogleSignIn-iOS` v8+ → GoogleSignIn, GoogleSignInSwift
+- `purchases-ios` v5+ → RevenueCat

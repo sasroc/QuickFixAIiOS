@@ -4,6 +4,16 @@ enum AppConfig {
     // MARK: - Backend
     static let apiBaseURL = "https://quickfix-ai-powered-home-maintenance-advisor-production.up.railway.app"
 
+    // MARK: - RevenueCat
+    /// Public SDK key from RevenueCat dashboard → Project Settings → API Keys.
+    static let revenueCatAPIKey = "appl_DneRXuzkugsEFOHdViSZyohwxUt"
+
+    /// RevenueCat entitlement identifier — must match the entitlement ID you
+    /// create in the RevenueCat dashboard (e.g. "pro_access").
+    enum Entitlements {
+        static let proAccess = "pro_access"
+    }
+
     // MARK: - Stripe (web-based checkout, opened in Safari)
     static let stripeSuccessURL = "quickfixai://payment-success"
     static let stripeCancelURL  = "quickfixai://payment-cancel"

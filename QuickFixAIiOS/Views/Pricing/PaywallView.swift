@@ -4,7 +4,7 @@ import SwiftUI
 struct PaywallView: View {
     @Environment(UserViewModel.self)    private var userVM
     @Environment(AuthViewModel.self)    private var authVM
-    @Environment(StoreKitService.self)  private var storeKitService
+    @Environment(RevenueCatService.self)  private var revenueCatService
 
     @State private var isAnnual         = false
     @State private var purchaseError: String? = nil
@@ -51,7 +51,7 @@ struct PaywallView: View {
             }
         }
         .overlay {
-            if storeKitService.purchaseInProgress {
+            if revenueCatService.purchaseInProgress {
                 LoadingOverlayView(message: "Processing…")
             }
         }
@@ -60,11 +60,11 @@ struct PaywallView: View {
         } message: {
             Text(purchaseError ?? "Unable to complete purchase. Please try again.")
         }
-        .onChange(of: storeKitService.purchaseError) { _, error in
+        .onChange(of: revenueCatService.purchaseError) { _, error in
             if let error {
                 purchaseError    = error
                 showPurchaseError = true
-                storeKitService.purchaseError = nil
+                revenueCatService.purchaseError = nil
             }
         }
     }
@@ -185,7 +185,7 @@ struct PaywallView: View {
                 }
                 .frame(height: 54)
             }
-            .disabled(storeKitService.purchaseInProgress)
+            .disabled(revenueCatService.purchaseInProgress)
 
             Text("No charge for 5 days  ·  $\(Int(plan.monthlyPrice))/mo after  ·  Cancel anytime")
                 .font(.caption)
@@ -335,7 +335,7 @@ struct PaywallView: View {
                     .foregroundStyle(.white)
                     .cornerRadius(10)
             }
-            .disabled(storeKitService.purchaseInProgress)
+            .disabled(revenueCatService.purchaseInProgress)
         }
         .padding(16)
         .frame(maxWidth: .infinity)
@@ -372,7 +372,7 @@ struct PaywallView: View {
                     .foregroundStyle(.white)
                     .cornerRadius(10)
             }
-            .disabled(storeKitService.purchaseInProgress)
+            .disabled(revenueCatService.purchaseInProgress)
         }
         .padding(16)
         .background(Color.cardBackground)
@@ -396,7 +396,7 @@ struct PaywallView: View {
                 .multilineTextAlignment(.center)
 
             Button {
-                Task { await storeKitService.restorePurchases() }
+                Task { await revenueCatService.restorePurchases() }
             } label: {
                 Text("Restore Purchases")
                     .font(.subheadline)
@@ -419,7 +419,7 @@ struct PaywallView: View {
     private func purchaseViaApple(productId: String) {
         Task {
             do {
-                try await storeKitService.purchase(productId: productId)
+                try await revenueCatService.purchase(productId: productId)
                 // On success, userVM Firestore listener updates hasActiveAccess
                 // and the paywall dismisses automatically.
             } catch {

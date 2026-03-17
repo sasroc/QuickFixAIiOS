@@ -1,8 +1,9 @@
 import SwiftUI
 import FirebaseCore
 import GoogleSignIn
+import RevenueCat
 
-// MARK: - App Delegate (configures Firebase before any Firebase SDK usage)
+// MARK: - App Delegate (configures Firebase and RevenueCat before any SDK usage)
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(
@@ -17,6 +18,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         if let clientID = FirebaseApp.app()?.options.clientID {
             GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
         }
+
+        // Configure RevenueCat. Must be called after FirebaseApp.configure()
+        // so the app is fully initialised before any purchase calls are made.
+        Purchases.configure(withAPIKey: AppConfig.revenueCatAPIKey)
+        #if DEBUG
+        Purchases.logLevel = .debug
+        #endif
 
         return true
     }
@@ -40,11 +48,11 @@ struct QuickFixAIiOSApp: App {
     // is guaranteed to run before any .task {} modifiers in the view body.
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
-    @State private var authVM        = AuthViewModel()
-    @State private var userVM        = UserViewModel()
-    @State private var repairVM      = RepairViewModel()
-    @State private var historyVM     = HistoryViewModel()
-    @State private var storeKitService = StoreKitService()
+    @State private var authVM             = AuthViewModel()
+    @State private var userVM             = UserViewModel()
+    @State private var repairVM           = RepairViewModel()
+    @State private var historyVM          = HistoryViewModel()
+    @State private var revenueCatService  = RevenueCatService()
 
     var body: some Scene {
         WindowGroup {
@@ -53,7 +61,7 @@ struct QuickFixAIiOSApp: App {
                 .environment(userVM)
                 .environment(repairVM)
                 .environment(historyVM)
-                .environment(storeKitService)
+                .environment(revenueCatService)
                 // Start the Firebase Auth listener only after Firebase is configured.
                 // .task runs after applicationDidFinishLaunchingWithOptions, so it's safe.
                 .task {
@@ -64,9 +72,14 @@ struct QuickFixAIiOSApp: App {
                 }
                 .onChange(of: authVM.firebaseUser) { _, user in
                     if let user {
+                        // Log this Firebase UID into RevenueCat so purchase history
+                        // is tied to the account across devices/reinstalls.
+                        Task { try? await Purchases.shared.logIn(user.uid) }
                         userVM.startListening(uid: user.uid)
                         historyVM.startListening()
                     } else {
+                        // Switch RC back to an anonymous user on sign-out.
+                        Task { try? await Purchases.shared.logOut() }
                         userVM.stopListening()
                         historyVM.stopListening()
                     }

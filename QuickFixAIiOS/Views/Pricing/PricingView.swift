@@ -4,7 +4,7 @@ import SafariServices
 struct PricingView: View {
     @Environment(UserViewModel.self)    private var userVM
     @Environment(AuthViewModel.self)    private var authVM
-    @Environment(StoreKitService.self)  private var storeKitService
+    @Environment(RevenueCatService.self)  private var revenueCatService
     @Environment(\.dismiss)            private var dismiss
 
     let startTrial: Bool
@@ -114,7 +114,7 @@ struct PricingView: View {
                             .padding(.horizontal, 30)
 
                         Button {
-                            Task { await storeKitService.restorePurchases() }
+                            Task { await revenueCatService.restorePurchases() }
                         } label: {
                             Text("Restore Purchases")
                                 .font(.caption)
@@ -140,7 +140,7 @@ struct PricingView: View {
                 }
             }
             .overlay {
-                if storeKitService.purchaseInProgress {
+                if revenueCatService.purchaseInProgress {
                     LoadingOverlayView(message: "Processing…")
                 }
             }
@@ -149,11 +149,11 @@ struct PricingView: View {
             } message: {
                 Text(purchaseError ?? "Unable to complete purchase. Please try again.")
             }
-            .onChange(of: storeKitService.purchaseError) { _, error in
+            .onChange(of: revenueCatService.purchaseError) { _, error in
                 if let error {
                     purchaseError     = error
                     showPurchaseError = true
-                    storeKitService.purchaseError = nil
+                    revenueCatService.purchaseError = nil
                 }
             }
         }
@@ -165,7 +165,7 @@ struct PricingView: View {
         let productId  = AppConfig.StoreKitProducts.productId(plan: planId, billing: billingStr)
         Task {
             do {
-                try await storeKitService.purchase(productId: productId)
+                try await revenueCatService.purchase(productId: productId)
             } catch {
                 purchaseError     = error.localizedDescription
                 showPurchaseError = true

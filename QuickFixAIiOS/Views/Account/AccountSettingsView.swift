@@ -4,7 +4,7 @@ import FirebaseAuth
 struct AccountSettingsView: View {
     @Environment(AuthViewModel.self)   private var authVM
     @Environment(UserViewModel.self)   private var userVM
-    @Environment(StoreKitService.self) private var storeKitService
+    @Environment(RevenueCatService.self) private var revenueCatService
     @Environment(\.dismiss)           private var dismiss
 
     @State private var showDisplayNameEdit = false
@@ -216,7 +216,7 @@ struct AccountSettingsView: View {
 
             // Restore Purchases (required by App Store guidelines)
             Button {
-                Task { await storeKitService.restorePurchases() }
+                Task { await revenueCatService.restorePurchases() }
             } label: {
                 Label("Restore Purchases", systemImage: "arrow.clockwise")
             }
