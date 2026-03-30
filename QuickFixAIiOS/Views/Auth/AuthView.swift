@@ -4,10 +4,16 @@ import GoogleSignInSwift
 import AuthenticationServices
 
 struct AuthView: View {
+    enum Mode { case signIn, signUp }
+
     @Environment(AuthViewModel.self) private var authVM
     @Environment(\.dismiss) private var dismiss
 
-    @State private var isLogin        = true
+    @State private var isLogin: Bool
+
+    init(initialMode: Mode = .signIn) {
+        _isLogin = State(initialValue: initialMode == .signIn)
+    }
     @State private var email          = ""
     @State private var password       = ""
     @State private var confirmPass    = ""

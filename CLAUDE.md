@@ -40,26 +40,29 @@ Open `QuickFixAIiOS.xcodeproj` in Xcode for day-to-day development. **Never hand
 
 **Pattern:** MVVM with SwiftUI, `@Observable` macro (iOS 17+), environment-injected ViewModels.
 
-**Entry point:** `QuickFixAIiOSApp.swift` configures Firebase, creates all ViewModels and `StoreKitService` as `@State`, injects them via `.environment()`, and starts/stops Firestore listeners when auth state changes. `AuthViewModel.init()` is intentionally empty — `startListening()` is called from `.task {}` in the app body, after Firebase is guaranteed to be configured via `AppDelegate`.
+**Entry point:** `QuickFixAIiOSApp.swift` configures Firebase, creates all ViewModels and `RevenueCatService` as `@State`, injects them via `.environment()`, and starts/stops Firestore listeners when auth state changes. `AuthViewModel.init()` is intentionally empty — `startListening()` is called from `.task {}` in the app body, after Firebase is guaranteed to be configured via `AppDelegate`.
 
 **Navigation:**
-- `RootView.swift` navigation states: not signed in → `LandingView`; signed in + profile loading → gradient spinner; signed in + no active access → `PaywallView`; signed in + active access → `MainTabView`. All transitions use opacity animation.
-- `LandingView` has a "Get Started" button that presents `AuthScreen` (full-screen branded gate). Tapping "Continue with Email" on `AuthScreen` opens `AuthView` (email/password form) as a sheet. Both views also offer Google and Sign in with Apple.
+- `RootView.swift` navigation states: not signed in → `AuthScreen`; signed in + profile loading → gradient spinner; signed in + active access → `MainTabView`; signed in + no access + `!hasCompletedOnboarding` → `PostAuthOnboardingView`; else → `PaywallView`. All transitions are opacity-animated and driven by `@AppStorage`.
+- `PostAuthOnboardingView` (`Views/Onboarding/`) — post-auth 5-screen flow: Welcome → 3 questionnaire questions (home type, DIY skill, repair type) → personalized summary. Shown once via `@AppStorage("hasCompletedOnboarding")`; existing subscribers skip it entirely. Answers saved to `@AppStorage("userHomeType")`, `"userDIYLevel"`, `"userRepairType")` for future use. Navigation uses slide transitions (`.asymmetric` move+opacity); back button reverses direction.
+- `AuthScreen` — full-screen branded gate with Google, Apple, and Email options. Accepts `startInSignUpMode: Bool` param to pre-select sign-up in the email sheet.
+- Tapping "Continue with Email" on `AuthScreen` opens `AuthView` (email/password form) as a sheet. `AuthView` accepts `initialMode: AuthView.Mode` (`.signIn` / `.signUp`). Both views also offer Google and Sign in with Apple.
 - `MainTabView` — 3 tabs: Repair, History, Account
 - In-app purchases use StoreKit 2 natively (no browser). The `quickfixai://payment-success` deep link and `SFSafariViewController` (via `SafariView` wrapper in `PricingView.swift`) remain for Stripe web flows.
+- `PaywallView` is the pre-access gate shown by `RootView` to signed-in users without a subscription. `PricingView` is the separate in-app upgrade screen reachable from the Account tab for users who already have access (e.g. to upgrade plan). They are distinct views — don't conflate them.
 
 **ViewModels** (all `@MainActor @Observable`):
 | ViewModel | Responsibility |
 |---|---|
 | `AuthViewModel` | Firebase Auth (email/password, Google Sign-In, Sign in with Apple), sign-out, delete account |
-| `UserViewModel` | Real-time Firestore listener on `users/{uid}`, Stripe checkout/portal URLs, refund |
+| `UserViewModel` | Real-time Firestore listener on `users/{uid}`, Stripe checkout/portal URLs, refund, `openAppleSubscriptionManagement()` |
 | `RepairViewModel` | POST `/api/ai/analyze`, image compression, save to Firestore `repairs/` |
 | `HistoryViewModel` | Real-time Firestore listener on `repairs/` for current user |
 
 **Key Services:**
 - `APIService` (singleton) — async/await HTTP client with methods `post<T>()`, `get<T>()`, `patch<T>()`, `delete()`, `postMultipart()`. Attaches Firebase JWT Bearer token automatically; `requiresAuth: true` fails without token, `false` attaches opportunistically. 90s timeout.
 - `FirestoreService.swift` — only contains `Timestamp: @retroactive FirestoreTimestampProtocol` conformance, bridging Firebase timestamps to Models without importing Firebase there.
-- `RevenueCatService` (`@MainActor @Observable`, file: `Services/StoreKitService.swift`) — wraps RevenueCat SDK for IAP. Exposes `purchase(productId:)` and `restorePurchases()`. On a successful purchase, calls `/api/apple/verify-purchase` with the JWS token from `result.transaction?.jwsRepresentation` to keep Firestore in sync (until RC webhooks replace this). RC is configured in `AppDelegate`; user is identified via `Purchases.shared.logIn(uid)` / `logOut()` in `QuickFixAIiOSApp` when Firebase auth state changes. Injected as an environment object.
+- `RevenueCatService` (`@MainActor @Observable`, file: `Services/StoreKitService.swift`) — wraps RevenueCat SDK for IAP. Exposes `purchase(productId:)` and `restorePurchases()`. On a successful purchase, RC verifies with Apple internally; the service then calls `syncToFirestore(customerInfo:productId:)` which writes `subscriptionStatus`, `plan`, `credits`, `paymentProvider: "apple"` directly to `users/{uid}` in Firestore so the `UserViewModel` listener updates immediately. RC is configured in `AppDelegate`; user is identified via `Purchases.shared.logIn(uid)` / `logOut()` in `QuickFixAIiOSApp` when Firebase auth state changes. Injected as an environment object. The entitlement ID is `AppConfig.Entitlements.proAccess` (`"pro_access"`).
 
 **Firestore listener lifecycle:** `App.onChange(authVM.firebaseUser)` calls `userVM.startListening(uid)` and `historyVM.startListening()` on sign-in and their corresponding `stopListening()` on sign-out. Use `nonisolated(unsafe) var listenerHandle` for `ListenerRegistration` stored in `@MainActor` classes so `deinit` can remove them.
 
@@ -90,7 +93,7 @@ All calls go to `AppConfig.apiBaseURL`. Key endpoints:
 
 - `SubscriptionPlan`: `.none` (3 credits), `.starter` (10), `.pro` (25), `.premium` (100)
 - History caps: Starter=10, Pro=50, Premium=unlimited
-- Trial: 5-day Starter, one-time per account (`wasOnTrial` prevents reuse)
+- Trial: `AppConfig.trialPeriodDays` (= 5) days, Starter plan, one-time per account (`wasOnTrial` prevents reuse). Always read this constant for UI copy — never hardcode the day count.
 - Lifetime access: `hasLifetimeAccess: true` → behaves like Starter, immune to Stripe/Apple webhooks
 - Credits reset is handled server-side (Stripe webhook or Apple server notification); frontend reads live Firestore data
 - `paymentProvider` field (`"stripe"` | `"apple"`) on `UserProfile` determines which management UI to show; `UserViewModel.isAppleSubscriber` exposes this. Apple subscribers manage via App Store; Stripe subscribers see the portal.

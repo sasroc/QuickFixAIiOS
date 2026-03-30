@@ -5,12 +5,14 @@ struct RootView: View {
     @Environment(UserViewModel.self)  private var userVM
 
     @State private var paymentSucceeded = false
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         ZStack {
             content
                 .animation(.easeInOut(duration: 0.3), value: authVM.isSignedIn)
                 .animation(.easeInOut(duration: 0.3), value: userVM.hasActiveAccess)
+                .animation(.easeInOut(duration: 0.3), value: hasCompletedOnboarding)
         }
         .onOpenURL { url in
             if url.scheme == "quickfixai" && url.host == "payment-success" {
@@ -29,22 +31,22 @@ struct RootView: View {
     @ViewBuilder
     private var content: some View {
         if !authVM.isSignedIn {
-            // Not signed in → clean auth screen
             AuthScreen()
                 .transition(.opacity)
 
         } else if !userVM.profileLoaded {
-            // Signed in but waiting for first Firestore response
             profileLoadingView
                 .transition(.opacity)
 
         } else if userVM.hasActiveAccess {
-            // Signed in + active subscription → full app
             MainTabView()
                 .transition(.opacity)
 
+        } else if !hasCompletedOnboarding {
+            PostAuthOnboardingView()
+                .transition(.opacity)
+
         } else {
-            // Signed in + no active subscription → paywall
             PaywallView()
                 .transition(.opacity)
         }

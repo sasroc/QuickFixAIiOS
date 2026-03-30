@@ -5,6 +5,8 @@ import AuthenticationServices
 /// Full-screen auth gate shown to unauthenticated users.
 /// Shows branding + two sign-in options; email form presented as a sheet.
 struct AuthScreen: View {
+    var startInSignUpMode: Bool = false
+
     @Environment(AuthViewModel.self) private var authVM
     @State private var showEmailAuth = false
 
@@ -107,7 +109,7 @@ struct AuthScreen: View {
             }
         }
         .sheet(isPresented: $showEmailAuth) {
-            AuthView()
+            AuthView(initialMode: startInSignUpMode ? .signUp : .signIn)
                 .environment(authVM)
         }
     }

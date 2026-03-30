@@ -40,7 +40,7 @@ enum AppConfig {
     }
 
     // MARK: - Trial
-    static let trialPeriodDays = 5
+    static let trialPeriodDays = 7
 
     // MARK: - Plans
     struct PlanInfo {

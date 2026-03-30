@@ -134,7 +134,7 @@ struct PaywallView: View {
 
             // Pricing headline
             VStack(alignment: .leading, spacing: 4) {
-                Text("5-Day Free Trial")
+                Text("7-Day Free Trial")
                     .font(.title2).fontWeight(.heavy)
 
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -146,7 +146,7 @@ struct PaywallView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text("No charge until Day 6  ·  Cancel anytime")
+                Text("No charge until Day 8  ·  Cancel anytime")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -178,7 +178,7 @@ struct PaywallView: View {
 
                     HStack(spacing: 8) {
                         Image(systemName: "star.fill").foregroundStyle(.yellow)
-                        Text("Start 5-Day Free Trial")
+                        Text("Start 7-Day Free Trial")
                             .fontWeight(.bold)
                     }
                     .foregroundStyle(.white)
@@ -187,7 +187,7 @@ struct PaywallView: View {
             }
             .disabled(revenueCatService.purchaseInProgress)
 
-            Text("No charge for 5 days  ·  $\(Int(plan.monthlyPrice))/mo after  ·  Cancel anytime")
+            Text("No charge for \(AppConfig.trialPeriodDays) days  ·  $\(Int(plan.monthlyPrice))/mo after  ·  Cancel anytime")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
