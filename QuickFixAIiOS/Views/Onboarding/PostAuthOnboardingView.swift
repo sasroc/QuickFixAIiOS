@@ -3,17 +3,18 @@ import SwiftUI
 struct PostAuthOnboardingView: View {
     @Environment(AuthViewModel.self) private var authVM
 
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("userHomeType")   private var userHomeType   = ""
-    @AppStorage("userDIYLevel")   private var userDIYLevel   = ""
-    @AppStorage("userRepairType") private var userRepairType = ""
+    @Environment(UserViewModel.self) private var userVM
+
+    @State private var userHomeType   = ""
+    @State private var userDIYLevel   = ""
+    @State private var userRepairType = ""
 
     @State private var step: OnboardingStep = .welcome
     @State private var animateEntrance = false
     @State private var goingBack = false
 
     private enum OnboardingStep {
-        case welcome, homeType, skillLevel, repairType, summary
+        case welcome, homeType, skillLevel, repairType, personalizing, summary, ahaDemo
     }
 
     private var firstName: String {
@@ -62,8 +63,14 @@ struct PostAuthOnboardingView: View {
                     options: repairTypeOptions,
                     selectedValue: $userRepairType,
                     onBack: { retreat(to: .skillLevel) },
-                    onAdvance: { advance(to: .summary) }
+                    onAdvance: { advance(to: .personalizing) }
                 )
+                .transition(stepTransition)
+
+            case .personalizing:
+                PersonalizingStepView {
+                    advance(to: .summary)
+                }
                 .transition(stepTransition)
 
             case .summary:
@@ -71,7 +78,22 @@ struct PostAuthOnboardingView: View {
                     homeType: userHomeType,
                     diyLevel: userDIYLevel,
                     repairType: userRepairType,
-                    onComplete: { hasCompletedOnboarding = true }
+                    onComplete: { advance(to: .ahaDemo) }
+                )
+                .transition(stepTransition)
+
+            case .ahaDemo:
+                AhaDemoStepView(
+                    repairType: userRepairType,
+                    onComplete: {
+                        Task {
+                            await userVM.completeOnboarding(
+                                homeType: userHomeType,
+                                diyLevel: userDIYLevel,
+                                repairType: userRepairType
+                            )
+                        }
+                    }
                 )
                 .transition(stepTransition)
             }
@@ -108,24 +130,24 @@ struct PostAuthOnboardingView: View {
     // MARK: - Question Data
 
     private let homeTypeOptions: [OptionItem] = [
-        OptionItem(value: "house",     label: "House",     subtitle: nil,              icon: "house.fill"),
-        OptionItem(value: "apartment", label: "Apartment", subtitle: nil,              icon: "building.2.fill"),
-        OptionItem(value: "condo",     label: "Condo",     subtitle: nil,              icon: "building.fill"),
-        OptionItem(value: "other",     label: "Other",     subtitle: nil,              icon: "questionmark.square.fill"),
+        OptionItem(value: "house",     label: "House",      subtitle: nil, icon: "house.fill"),
+        OptionItem(value: "apartment", label: "Apartment",  subtitle: nil, icon: "building.2.fill"),
+        OptionItem(value: "condo",     label: "Condo",      subtitle: nil, icon: "building.fill"),
+        OptionItem(value: "other",     label: "Other",      subtitle: nil, icon: "questionmark.square.fill"),
     ]
 
     private let skillLevelOptions: [OptionItem] = [
-        OptionItem(value: "beginner", label: "Just starting out", subtitle: "Total beginner",        icon: "hand.wave.fill"),
-        OptionItem(value: "some",     label: "Some experience",   subtitle: "Done a few repairs",    icon: "wrench.fill"),
-        OptionItem(value: "handy",    label: "Pretty handy",      subtitle: "Handle most things",    icon: "hammer.fill"),
+        OptionItem(value: "beginner", label: "Just starting out", subtitle: "Total beginner",          icon: "hand.wave.fill"),
+        OptionItem(value: "some",     label: "Some experience",   subtitle: "Done a few repairs",      icon: "wrench.fill"),
+        OptionItem(value: "handy",    label: "Pretty handy",      subtitle: "Handle most things",      icon: "hammer.fill"),
         OptionItem(value: "expert",   label: "DIY expert",        subtitle: "Can fix almost anything", icon: "star.fill"),
     ]
 
     private let repairTypeOptions: [OptionItem] = [
-        OptionItem(value: "plumbing",    label: "Plumbing",           subtitle: nil, icon: "drop.fill"),
-        OptionItem(value: "electrical",  label: "Electrical",         subtitle: nil, icon: "bolt.fill"),
-        OptionItem(value: "hvac",        label: "HVAC & Appliances",  subtitle: nil, icon: "thermometer.medium"),
-        OptionItem(value: "general",     label: "General Maintenance", subtitle: nil, icon: "wrench.and.screwdriver.fill"),
+        OptionItem(value: "plumbing",   label: "Plumbing",            subtitle: nil, icon: "drop.fill"),
+        OptionItem(value: "electrical", label: "Electrical",          subtitle: nil, icon: "bolt.fill"),
+        OptionItem(value: "hvac",       label: "HVAC & Appliances",   subtitle: nil, icon: "thermometer.medium"),
+        OptionItem(value: "general",    label: "General Maintenance", subtitle: nil, icon: "wrench.and.screwdriver.fill"),
     ]
 }
 
@@ -137,6 +159,15 @@ private struct OptionItem: Identifiable {
     let label: String
     let subtitle: String?
     let icon: String
+}
+
+private struct DemoContent {
+    let title: String
+    let icon: String
+    let description: String
+    let steps: [String]
+    let tools: [String]
+    let materials: [String]
 }
 
 // MARK: - Welcome Step
@@ -159,7 +190,6 @@ private struct WelcomeStepView: View {
                 Spacer()
 
                 VStack(spacing: 28) {
-                    // Icon cluster
                     ZStack {
                         Circle()
                             .fill(.white.opacity(0.15))
@@ -169,7 +199,6 @@ private struct WelcomeStepView: View {
                             .foregroundStyle(.white)
                     }
 
-                    // Greeting
                     VStack(spacing: 12) {
                         Text("Welcome, \(firstName)!")
                             .font(.system(size: 34, weight: .heavy))
@@ -183,7 +212,6 @@ private struct WelcomeStepView: View {
                             .lineSpacing(3)
                     }
 
-                    // Trust chips
                     HStack(spacing: 16) {
                         Label("Takes 30 sec", systemImage: "clock.fill")
                         Label("No commitment", systemImage: "checkmark.shield.fill")
@@ -199,7 +227,6 @@ private struct WelcomeStepView: View {
                 Spacer()
                 Spacer()
 
-                // CTA
                 Button(action: onNext) {
                     HStack(spacing: 8) {
                         Text("Let's go")
@@ -235,14 +262,18 @@ private struct QuestionStepView: View {
     let onBack: () -> Void
     let onAdvance: () -> Void
 
+    @State private var localSelection = ""
     @State private var pendingAdvance = false
+    @State private var headerVisible = false
+    @State private var questionVisible = false
+    @State private var cardsVisible = false
 
     var body: some View {
         ZStack {
             Color.appBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar: back button + progress
+                // Header row + progress bar
                 VStack(spacing: 10) {
                     HStack {
                         Button(action: onBack) {
@@ -258,26 +289,21 @@ private struct QuestionStepView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                         Spacer()
-                        // Spacer to balance the back button
                         Color.clear.frame(width: 36, height: 36)
                     }
 
-                    // Progress bar
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule()
                                 .fill(Color.secondary.opacity(0.15))
                                 .frame(height: 5)
                             Capsule()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.brandBlue, Color.brand],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
+                                .fill(LinearGradient(
+                                    colors: [Color.brandBlue, Color.brand],
+                                    startPoint: .leading, endPoint: .trailing
+                                ))
                                 .frame(width: geo.size.width * progress, height: 5)
-                                .animation(.easeInOut(duration: 0.4), value: progress)
+                                .animation(.easeInOut(duration: 0.5), value: progress)
                         }
                     }
                     .frame(height: 5)
@@ -285,35 +311,54 @@ private struct QuestionStepView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 60)
                 .padding(.bottom, 28)
+                .opacity(headerVisible ? 1 : 0)
+                .offset(y: headerVisible ? 0 : -8)
+                .animation(.easeOut(duration: 0.3), value: headerVisible)
 
-                // Question
+                // Question text
                 Text(question)
                     .font(.system(size: 26, weight: .bold))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 28)
-                    .padding(.bottom, 28)
+                    .padding(.bottom, 32)
+                    .opacity(questionVisible ? 1 : 0)
+                    .offset(y: questionVisible ? 0 : 14)
+                    .animation(.easeOut(duration: 0.35).delay(0.06), value: questionVisible)
 
-                // Option grid
+                // Option cards with staggered entrance
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                    ForEach(options) { option in
-                        OptionCard(
-                            option: option,
-                            isSelected: selectedValue == option.value
-                        ) {
+                    ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                        OptionCard(option: option, isSelected: localSelection == option.value) {
                             guard !pendingAdvance else { return }
-                            selectedValue = option.value
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                localSelection = option.value
+                            }
                             pendingAdvance = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) {
+                                selectedValue = option.value
                                 pendingAdvance = false
                                 onAdvance()
                             }
                         }
+                        .opacity(cardsVisible ? 1 : 0)
+                        .scaleEffect(cardsVisible ? 1 : 0.88)
+                        .offset(y: cardsVisible ? 0 : 22)
+                        .animation(
+                            .spring(response: 0.45, dampingFraction: 0.72)
+                                .delay(0.12 + Double(index) * 0.07),
+                            value: cardsVisible
+                        )
                     }
                 }
                 .padding(.horizontal, 20)
 
                 Spacer()
             }
+        }
+        .onAppear {
+            headerVisible   = true
+            questionVisible = true
+            cardsVisible    = true
         }
     }
 }
@@ -351,9 +396,7 @@ private struct OptionCard: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
                 .padding(.horizontal, 12)
-                .background(
-                    isSelected ? Color.brand.opacity(0.06) : Color.cardBackground
-                )
+                .background(isSelected ? Color.brand.opacity(0.06) : Color.cardBackground)
                 .cornerRadius(16)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
@@ -367,7 +410,6 @@ private struct OptionCard: View {
                     radius: 6, y: 2
                 )
 
-                // Checkmark badge
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(Color.brand)
@@ -382,6 +424,120 @@ private struct OptionCard: View {
     }
 }
 
+// MARK: - Personalizing Step
+
+private struct PersonalizingStepView: View {
+    let onComplete: () -> Void
+
+    @State private var phase = -1
+
+    private let items: [(String, String)] = [
+        ("Analyzing your home profile",    "house.fill"),
+        ("Customizing your repair guides", "wrench.and.screwdriver.fill"),
+        ("Building your AI experience",    "sparkles"),
+    ]
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.brandBlue, Color.brand],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Spacer()
+
+                VStack(spacing: 36) {
+                    ZStack {
+                        ForEach(0..<3, id: \.self) { i in
+                            Circle()
+                                .fill(.white.opacity(0.06 - Double(i) * 0.015))
+                                .frame(width: CGFloat(90 + i * 28), height: CGFloat(90 + i * 28))
+                                .scaleEffect(phase >= 0 ? 1.0 : 0.4)
+                                .opacity(phase >= 0 ? 1 : 0)
+                                .animation(.easeOut(duration: 0.7).delay(Double(i) * 0.12), value: phase >= 0)
+                        }
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 42, weight: .medium))
+                            .foregroundStyle(.white)
+                            .scaleEffect(phase >= 0 ? 1 : 0.3)
+                            .opacity(phase >= 0 ? 1 : 0)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.6), value: phase >= 0)
+                    }
+
+                    VStack(spacing: 6) {
+                        Text("Personalizing your")
+                            .font(.system(size: 30, weight: .heavy))
+                            .foregroundStyle(.white)
+                        Text("experience...")
+                            .font(.system(size: 30, weight: .heavy))
+                            .foregroundStyle(.yellow)
+                    }
+                    .multilineTextAlignment(.center)
+                    .opacity(phase >= 0 ? 1 : 0)
+                    .offset(y: phase >= 0 ? 0 : 14)
+                    .animation(.easeOut(duration: 0.4).delay(0.1), value: phase >= 0)
+
+                    VStack(alignment: .leading, spacing: 18) {
+                        ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                            HStack(spacing: 14) {
+                                ZStack {
+                                    Circle()
+                                        .fill(.white.opacity(0.2))
+                                        .frame(width: 38, height: 38)
+                                    if phase > index {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 15, weight: .bold))
+                                            .foregroundStyle(.white)
+                                            .transition(.scale.combined(with: .opacity))
+                                    } else if phase == index {
+                                        ProgressView().tint(.white).scaleEffect(0.75)
+                                    } else {
+                                        Image(systemName: item.1)
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(.white.opacity(0.35))
+                                    }
+                                }
+                                .animation(.easeInOut(duration: 0.25), value: phase)
+
+                                Text(item.0)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.white.opacity(phase >= index ? 1.0 : 0.45))
+                                    .animation(.easeOut(duration: 0.3), value: phase)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(22)
+                    .background(.white.opacity(0.12))
+                    .cornerRadius(20)
+                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.2), lineWidth: 1))
+                    .opacity(phase >= 0 ? 1 : 0)
+                    .offset(y: phase >= 0 ? 0 : 20)
+                    .animation(.easeOut(duration: 0.5).delay(0.2), value: phase >= 0)
+                }
+                .padding(.horizontal, 28)
+
+                Spacer()
+                Spacer()
+            }
+        }
+        .onAppear {
+            let schedule: [(Double, Int)] = [(0.3, 0), (1.1, 1), (1.9, 2), (2.7, 3)]
+            for (delay, p) in schedule {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    withAnimation { phase = p }
+                    if p == 3 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { onComplete() }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Summary Step
 
 private struct SummaryStepView: View {
@@ -391,7 +547,7 @@ private struct SummaryStepView: View {
     let onComplete: () -> Void
 
     @State private var animateCheck = false
-    @State private var animateCard = false
+    @State private var animateCard  = false
 
     private var homeTypeLabel: String {
         switch homeType {
@@ -421,14 +577,12 @@ private struct SummaryStepView: View {
         }
     }
 
-    private var bullets: [(String, String)] {
-        [
-            ("Tailored for \(homeTypeLabel)",          "house.fill"),
-            ("Step-by-step guides for \(skillLabel)", "list.bullet.clipboard.fill"),
-            ("Specialized \(repairLabel) expertise",  "wrench.fill"),
-            ("AI-powered answers, available 24/7",    "bolt.fill"),
-        ]
-    }
+    private var bullets: [(String, String)] {[
+        ("Tailored for \(homeTypeLabel)",          "house.fill"),
+        ("Step-by-step guides for \(skillLabel)",  "list.bullet.clipboard.fill"),
+        ("Specialized \(repairLabel) expertise",   "wrench.fill"),
+        ("AI-powered answers, available 24/7",     "bolt.fill"),
+    ]}
 
     var body: some View {
         ZStack {
@@ -443,7 +597,6 @@ private struct SummaryStepView: View {
                 Spacer()
 
                 VStack(spacing: 28) {
-                    // Animated checkmark
                     ZStack {
                         Circle()
                             .fill(.white.opacity(0.15))
@@ -456,7 +609,6 @@ private struct SummaryStepView: View {
                             .animation(.spring(response: 0.5, dampingFraction: 0.6), value: animateCheck)
                     }
 
-                    // Headline
                     Text("Your QuickFix AI\nis ready!")
                         .font(.system(size: 34, weight: .heavy))
                         .foregroundStyle(.white)
@@ -465,7 +617,6 @@ private struct SummaryStepView: View {
                         .offset(y: animateCheck ? 0 : 12)
                         .animation(.easeOut(duration: 0.4).delay(0.2), value: animateCheck)
 
-                    // Personalized bullets card
                     VStack(alignment: .leading, spacing: 16) {
                         ForEach(Array(bullets.enumerated()), id: \.offset) { index, bullet in
                             HStack(spacing: 14) {
@@ -488,10 +639,7 @@ private struct SummaryStepView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(22)
                     .background(.white.opacity(0.15))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(.white.opacity(0.3), lineWidth: 1)
-                    )
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.3), lineWidth: 1))
                     .cornerRadius(18)
                     .opacity(animateCard ? 1 : 0)
                     .animation(.easeOut(duration: 0.4).delay(0.3), value: animateCard)
@@ -501,11 +649,10 @@ private struct SummaryStepView: View {
                 Spacer()
                 Spacer()
 
-                // CTA
                 VStack(spacing: 12) {
                     Button(action: onComplete) {
                         HStack(spacing: 8) {
-                            Text("See My Plan")
+                            Text("See It In Action")
                                 .fontWeight(.bold)
                                 .font(.system(size: 18))
                             Image(systemName: "arrow.right")
@@ -519,7 +666,7 @@ private struct SummaryStepView: View {
                         .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
                     }
 
-                    Text("Takes 30 seconds to get started")
+                    Text("One more thing before you start")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.55))
                 }
@@ -531,7 +678,542 @@ private struct SummaryStepView: View {
         }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { animateCheck = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { animateCard = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { animateCard  = true }
+        }
+    }
+}
+
+// MARK: - Aha Demo Step
+
+private struct AhaDemoStepView: View {
+    let repairType: String
+    let onComplete: () -> Void
+
+    // Animation state — drives the entire auto-playing sequence
+    @State private var showForm        = false
+    @State private var buttonPressed   = false
+    @State private var rippleScale: CGFloat = 0.3
+    @State private var rippleOpacity: Double = 0
+    @State private var showGuide       = false
+    @State private var confidence: Double = 0
+    @State private var step1Visible    = false
+    @State private var markCompletePulse = false
+    @State private var step1Complete   = false
+    @State private var nextPulse       = false
+    @State private var showStep2       = false
+    @State private var showTools       = false
+    @State private var showCTA         = false
+
+    private var demo: DemoContent {
+        switch repairType {
+        case "plumbing":
+            return DemoContent(
+                title: "Fix a Dripping Kitchen Faucet",
+                icon: "drop.fill",
+                description: "My kitchen faucet has been dripping all night and I can't get it to stop.",
+                steps: [
+                    "Turn off the water supply valves under the sink",
+                    "Remove the handle and replace the worn cartridge",
+                    "Reassemble and test — no more dripping"
+                ],
+                tools: ["Adjustable wrench", "Channel-lock pliers", "Flathead screwdriver"],
+                materials: ["Replacement cartridge", "Plumber's grease", "Teflon tape"]
+            )
+        case "electrical":
+            return DemoContent(
+                title: "Replace a Faulty Outlet",
+                icon: "bolt.fill",
+                description: "One of my wall outlets stopped working completely. Nothing plugged in turns on.",
+                steps: [
+                    "Turn off the circuit breaker for that outlet",
+                    "Disconnect wires from old outlet, note wire colors",
+                    "Connect wires to new outlet and secure in the box"
+                ],
+                tools: ["Flathead screwdriver", "Phillips screwdriver", "Voltage tester"],
+                materials: ["Replacement outlet", "Wire nuts", "Electrical tape"]
+            )
+        case "hvac":
+            return DemoContent(
+                title: "Replace HVAC Air Filter",
+                icon: "thermometer.medium",
+                description: "My AC isn't cooling as well as it used to. I think the air filter needs replacing.",
+                steps: [
+                    "Locate your air handler and note the filter size",
+                    "Slide out the old filter and dispose of it",
+                    "Insert new filter with arrow pointing toward the blower"
+                ],
+                tools: ["Measuring tape", "Work gloves", "Flashlight"],
+                materials: ["Replacement filter (correct size)", "Filter disposal bag"]
+            )
+        default:
+            return DemoContent(
+                title: "Patch a Drywall Hole",
+                icon: "wrench.and.screwdriver.fill",
+                description: "There's a hole in my drywall from a doorknob, about 3 inches wide.",
+                steps: [
+                    "Cut a clean square around the damaged area",
+                    "Secure a backer board and attach the patch",
+                    "Apply joint compound, sand smooth, and paint"
+                ],
+                tools: ["Drywall saw", "Putty knife", "Sanding block"],
+                materials: ["Drywall patch kit", "Joint compound", "Primer and paint"]
+            )
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.brandBlue, Color.brand],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    // Header
+                    VStack(spacing: 6) {
+                        Text("See QuickFix AI in action")
+                            .font(.system(size: 22, weight: .heavy))
+                            .foregroundStyle(.white)
+                        Text("Watch AI handle a real repair")
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 8)
+                    .opacity(showForm ? 1 : 0)
+                    .offset(y: showForm ? 0 : 16)
+                    .animation(.easeOut(duration: 0.4), value: showForm)
+
+                    // INPUT FORM — fades away when guide appears
+                    if !showGuide {
+                        inputFormCard
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    }
+
+                    // GUIDE — slides in after form disappears
+                    if showGuide {
+                        guideContent
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .opacity
+                            ))
+                    }
+
+                    // CTA — last thing to appear
+                    if showCTA {
+                        ctaSection
+                            .transition(.opacity.combined(with: .offset(y: 16)))
+                    }
+
+                    Spacer(minLength: 48)
+                }
+                .padding(.horizontal, 22)
+                .padding(.top, 60)
+                .padding(.bottom, 16)
+            }
+        }
+        .onAppear { startSequence() }
+    }
+
+    // MARK: - Input Form Card
+
+    private var inputFormCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Description field (mock)
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Describe the problem", systemImage: "text.alignleft")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.inputBackground)
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.brand.opacity(0.45), lineWidth: 1.5)
+                    Text(demo.description)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .padding(10)
+                }
+                .frame(minHeight: 76)
+            }
+
+            // Photo row (mock)
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.inputBackground)
+                    .frame(width: 62, height: 62)
+                    .overlay(
+                        Image(systemName: "camera.fill")
+                            .foregroundStyle(Color.secondary)
+                            .font(.system(size: 22))
+                    )
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Add a photo (optional)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("Helps AI give more accurate guidance")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            Divider().opacity(0.35)
+
+            // "Get Repair Guide" button with tap animation
+            ZStack {
+                // Expanding ripple ring
+                Circle()
+                    .stroke(Color.brand.opacity(0.5), lineWidth: 2)
+                    .scaleEffect(rippleScale)
+                    .opacity(rippleOpacity)
+                    .allowsHitTesting(false)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 15, weight: .bold))
+                    Text("Get Repair Guide")
+                        .font(.system(size: 16, weight: .bold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 15)
+                .background(
+                    LinearGradient(
+                        colors: [Color.brandBlue, Color.brand],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                )
+                .foregroundStyle(.white)
+                .cornerRadius(12)
+                .scaleEffect(buttonPressed ? 0.95 : 1.0)
+                .shadow(
+                    color: Color.brand.opacity(buttonPressed ? 0.1 : 0.35),
+                    radius: buttonPressed ? 3 : 10, y: buttonPressed ? 1 : 4
+                )
+                .animation(.easeInOut(duration: 0.13), value: buttonPressed)
+            }
+            .frame(height: 52)
+        }
+        .padding(18)
+        .background(Color.cardBackground)
+        .cornerRadius(18)
+        .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
+        .opacity(showForm ? 1 : 0)
+        .offset(y: showForm ? 0 : 20)
+        .animation(.spring(response: 0.5, dampingFraction: 0.78).delay(0.1), value: showForm)
+    }
+
+    // MARK: - Guide Content (appears after form)
+
+    private var guideContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Guide header
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.brand.opacity(0.1))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: demo.icon)
+                        .foregroundStyle(Color.brand)
+                        .font(.system(size: 18))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(demo.title)
+                        .font(.subheadline.weight(.bold))
+                        .lineLimit(2)
+                    Label("~30 min", systemImage: "clock.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                // AI badge
+                Label("AI", systemImage: "sparkles")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color.brand)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Color.brand.opacity(0.1))
+                    .cornerRadius(8)
+            }
+
+            // Confidence bar
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("AI Confidence")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int(confidence * 100))%")
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(Color.brand)
+                }
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.secondary.opacity(0.15)).frame(height: 7)
+                        Capsule()
+                            .fill(LinearGradient(
+                                colors: [Color.brandBlue, Color.brand],
+                                startPoint: .leading, endPoint: .trailing
+                            ))
+                            .frame(width: geo.size.width * confidence, height: 7)
+                            .animation(.easeOut(duration: 1.0), value: confidence)
+                    }
+                }
+                .frame(height: 7)
+            }
+
+            // Progress tracker
+            HStack {
+                Text("Progress")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Text("\(step1Complete ? 1 : 0)/\(demo.steps.count) steps")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .animation(.easeOut, value: step1Complete)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15)).frame(height: 6)
+                    if step1Complete {
+                        Capsule()
+                            .fill(Color.success.opacity(0.8))
+                            .frame(width: geo.size.width / CGFloat(demo.steps.count), height: 6)
+                            .animation(.easeInOut(duration: 0.5), value: step1Complete)
+                    }
+                }
+            }
+            .frame(height: 6)
+
+            Divider().opacity(0.35)
+
+            // Step card (step 1 → step 2 with slide transition)
+            ZStack {
+                if !showStep2 && step1Visible {
+                    stepCard(
+                        index: 0,
+                        text: demo.steps[0],
+                        isComplete: step1Complete,
+                        markPulse: markCompletePulse
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .leading).combined(with: .opacity),
+                        removal:   .move(edge: .leading).combined(with: .opacity)
+                    ))
+                    .id("step1")
+                }
+                if showStep2 {
+                    stepCard(
+                        index: 1,
+                        text: demo.steps[1],
+                        isComplete: false,
+                        markPulse: false
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal:   .move(edge: .trailing).combined(with: .opacity)
+                    ))
+                    .id("step2")
+                }
+            }
+            .frame(minHeight: 110)
+
+            // Prev / Next navigation (mock — Next pulses when auto-advancing)
+            if step1Visible {
+                HStack {
+                    Label("Previous", systemImage: "chevron.left")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.secondary.opacity(0.4))
+
+                    Spacer()
+
+                    Text("Step \(showStep2 ? 2 : 1) of \(demo.steps.count)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .animation(.easeOut, value: showStep2)
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Text("Next")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.brand)
+                    .scaleEffect(nextPulse ? 1.18 : 1.0)
+                    .animation(.easeInOut(duration: 0.14), value: nextPulse)
+                }
+                .transition(.opacity)
+            }
+
+            // Tools & Materials (appear below steps)
+            if showTools {
+                Divider().opacity(0.35)
+
+                HStack(alignment: .top, spacing: 12) {
+                    toolsCard(title: "Tools", icon: "wrench.fill", items: demo.tools, accentColor: Color.brand)
+                    toolsCard(title: "Materials", icon: "shippingbox.fill", items: demo.materials, accentColor: Color.brandBlue)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .padding(18)
+        .background(Color.cardBackground)
+        .cornerRadius(18)
+        .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
+    }
+
+    // MARK: - Step Card
+
+    private func stepCard(index: Int, text: String, isComplete: Bool, markPulse: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                // Step number circle
+                ZStack {
+                    if isComplete {
+                        Circle()
+                            .fill(Color.success)
+                            .frame(width: 34, height: 34)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Circle()
+                            .fill(LinearGradient(
+                                colors: [Color.brandBlue, Color.brand],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ))
+                            .frame(width: 34, height: 34)
+                            .shadow(color: Color.brand.opacity(0.3), radius: 4, y: 2)
+                        Text("\(index + 1)")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .animation(.spring(response: 0.4, dampingFraction: 0.65), value: isComplete)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Step \(index + 1)")
+                        .font(.headline)
+                    Text(text)
+                        .font(.body)
+                        .foregroundStyle(isComplete ? Color.secondary : Color.primary)
+                        .strikethrough(isComplete, color: Color.secondary.opacity(0.5))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .animation(.easeOut(duration: 0.3), value: isComplete)
+                }
+
+                Spacer()
+
+                // Mark Complete button
+                Label(
+                    isComplete ? "Completed" : "Mark Complete",
+                    systemImage: isComplete ? "checkmark.circle.fill" : "circle"
+                )
+                .font(.footnote)
+                .foregroundStyle(isComplete ? Color.success : Color.secondary)
+                .scaleEffect(markPulse ? 1.18 : 1.0)
+                .animation(.easeInOut(duration: 0.14), value: markPulse)
+                .animation(.easeOut(duration: 0.3), value: isComplete)
+            }
+        }
+        .padding(14)
+        .background(Color.appBackground)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isComplete ? Color.success.opacity(0.4) : Color.clear, lineWidth: 2)
+                .animation(.easeOut(duration: 0.3), value: isComplete)
+        )
+    }
+
+    // MARK: - Tools Card
+
+    private func toolsCard(title: String, icon: String, items: [String], accentColor: Color) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: icon)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(accentColor)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(items, id: \.self) { item in
+                    HStack(spacing: 8) {
+                        Image(systemName: "circle")
+                            .foregroundStyle(Color.secondary.opacity(0.5))
+                            .font(.system(size: 14))
+                        Text(item)
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.appBackground)
+        .cornerRadius(12)
+    }
+
+    // MARK: - CTA Section
+
+    private var ctaSection: some View {
+        VStack(spacing: 10) {
+            Button(action: onComplete) {
+                HStack(spacing: 8) {
+                    Text("Unlock My Access")
+                        .font(.system(size: 18, weight: .bold))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 16, weight: .bold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .background(.white)
+                .foregroundStyle(Color.brandBlue)
+                .cornerRadius(16)
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
+            }
+
+            Text("Start your \(AppConfig.trialPeriodDays)-day free trial on the next screen")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    // MARK: - Animation Sequence
+
+    private func startSequence() {
+        at(0.3)  { showForm = true }
+        at(1.3)  { tapButton() }
+        at(2.0)  { withAnimation(.spring(response: 0.55, dampingFraction: 0.8)) { showGuide = true } }
+        at(2.6)  { confidence = 0.94 }
+        at(3.1)  { withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) { step1Visible = true } }
+        at(4.0)  { markCompletePulse = true }
+        at(4.18) { markCompletePulse = false }
+        at(4.3)  { withAnimation(.spring(response: 0.4, dampingFraction: 0.65)) { step1Complete = true } }
+        at(5.0)  { nextPulse = true }
+        at(5.18) { nextPulse = false }
+        at(3.4)  { withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showTools = true } }
+        at(5.3)  { withAnimation(.easeInOut(duration: 0.35)) { showStep2 = true } }
+        at(5.8)  { withAnimation(.easeOut(duration: 0.4)) { showCTA = true } }
+    }
+
+    private func at(_ delay: Double, action: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
+    }
+
+    private func tapButton() {
+        buttonPressed = true
+        rippleScale   = 0.4
+        rippleOpacity = 0.7
+        withAnimation(.easeOut(duration: 0.65)) {
+            rippleScale   = 2.4
+            rippleOpacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            buttonPressed = false
         }
     }
 }

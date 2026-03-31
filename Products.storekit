@@ -192,7 +192,13 @@
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "6759681113",
-          "introductoryOffer" : null,
+          "introductoryOffer" : {
+            "displayPrice" : "0.00",
+            "offerIdentifier" : null,
+            "paymentMode" : "FreeTrial",
+            "periodCount" : 1,
+            "subscriptionPeriod" : "P1W"
+          },
           "localizations" : [
             {
               "description" : "10 AI repair guides/month + photo analysis",

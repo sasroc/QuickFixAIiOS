@@ -51,6 +51,17 @@ struct AuthScreen: View {
 
                 // Sign-in buttons
                 VStack(spacing: 14) {
+                    SignInWithAppleButton(.continue) { request in
+                        authVM.prepareAppleSignInRequest(request)
+                    } onCompletion: { result in
+                        Task { await authVM.handleAppleSignInResult(result) }
+                    }
+                    .signInWithAppleButtonStyle(.whiteOutline)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .cornerRadius(14)
+                    .disabled(authVM.isLoading)
+
                     Button {
                         Task { await authVM.signInWithGoogle() }
                     } label: {
@@ -70,17 +81,6 @@ struct AuthScreen: View {
                         )
                         .cornerRadius(14)
                     }
-                    .disabled(authVM.isLoading)
-
-                    SignInWithAppleButton(.continue) { request in
-                        authVM.prepareAppleSignInRequest(request)
-                    } onCompletion: { result in
-                        Task { await authVM.handleAppleSignInResult(result) }
-                    }
-                    .signInWithAppleButtonStyle(.whiteOutline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .cornerRadius(14)
                     .disabled(authVM.isLoading)
 
                     Button {

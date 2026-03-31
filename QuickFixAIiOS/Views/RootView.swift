@@ -5,14 +5,13 @@ struct RootView: View {
     @Environment(UserViewModel.self)  private var userVM
 
     @State private var paymentSucceeded = false
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         ZStack {
             content
                 .animation(.easeInOut(duration: 0.3), value: authVM.isSignedIn)
                 .animation(.easeInOut(duration: 0.3), value: userVM.hasActiveAccess)
-                .animation(.easeInOut(duration: 0.3), value: hasCompletedOnboarding)
+                .animation(.easeInOut(duration: 0.3), value: userVM.profile?.hasCompletedOnboarding)
         }
         .onOpenURL { url in
             if url.scheme == "quickfixai" && url.host == "payment-success" {
@@ -42,7 +41,7 @@ struct RootView: View {
             MainTabView()
                 .transition(.opacity)
 
-        } else if !hasCompletedOnboarding {
+        } else if !(userVM.profile?.hasCompletedOnboarding ?? false) {
             PostAuthOnboardingView()
                 .transition(.opacity)
 

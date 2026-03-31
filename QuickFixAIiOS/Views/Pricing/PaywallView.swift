@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// Full-screen paywall shown to signed-in users who don't have an active subscription.
 struct PaywallView: View {
-    @Environment(UserViewModel.self)    private var userVM
-    @Environment(AuthViewModel.self)    private var authVM
+    @Environment(UserViewModel.self)      private var userVM
+    @Environment(AuthViewModel.self)      private var authVM
     @Environment(RevenueCatService.self)  private var revenueCatService
 
-    @State private var isAnnual         = false
+    @State private var isAnnual          = false
+    @State private var showAllPlans      = false
     @State private var purchaseError: String? = nil
     @State private var showPurchaseError = false
 
@@ -19,35 +19,17 @@ struct PaywallView: View {
         ZStack {
             Color.appBackground.ignoresSafeArea()
 
-            GeometryReader { geo in
-                VStack(spacing: 0) {
-                    paywallHeader
-                        .frame(height: geo.size.height * 0.25)
-
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 20) {
-                            // 1. Featured trial card (if eligible)
-                            if isTrialEligible, let starter = starterPlan {
-                                trialCard(plan: starter)
-                            }
-
-                            // 2. Billing + paid plans
-                            paidPlansSection
-
-                            // 3. Starter without trial (if trial used)
-                            if !isTrialEligible, let starter = starterPlan {
-                                starterFallbackRow(plan: starter)
-                            }
-
-                            // 4. Footer
-                            footerSection
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 24)
-                        .padding(.bottom, 48)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 32) {
+                    if isTrialEligible, let starter = starterPlan {
+                        trialContent(plan: starter)
+                    } else {
+                        noTrialContent
                     }
-                    .background(Color.appBackground)
                 }
+                .padding(.horizontal, 24)
+                .padding(.top, 64)
+                .padding(.bottom, 56)
             }
         }
         .overlay {
@@ -69,244 +51,312 @@ struct PaywallView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Trial Flow
 
-    private var paywallHeader: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color.brandBlue, Color.brand],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea(edges: .top)
+    private func trialContent(plan: AppConfig.PlanInfo) -> some View {
+        VStack(spacing: 28) {
 
-            VStack(spacing: 8) {
-                HStack(spacing: 10) {
-                    Image(systemName: "wrench.and.screwdriver.fill")
-                        .font(.system(size: 28, weight: .medium))
-                        .foregroundStyle(.white)
-                    HStack(spacing: 0) {
-                        Text("QuickFix")
-                            .font(.system(size: 28, weight: .heavy))
-                            .foregroundStyle(.white)
-                        Text(" AI")
-                            .font(.system(size: 28, weight: .heavy))
-                            .foregroundStyle(.yellow)
-                    }
-                }
+            // 1. Headline
+            VStack(spacing: 10) {
+                (Text("Start your \(AppConfig.trialPeriodDays)-day ")
+                    .foregroundStyle(.primary)
+                + Text("FREE")
+                    .foregroundStyle(Color.brand)
+                + Text(" trial."))
+                    .font(.system(size: 34, weight: .heavy))
+                    .multilineTextAlignment(.center)
 
-                Text("Unlock instant AI repair guidance")
+                Text("No payment due now. Cancel anytime.")
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.85))
-
-                Text("Choose a plan to get started")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.65))
-            }
-            .padding(.horizontal, 24)
-        }
-    }
-
-    // MARK: - Trial Card
-
-    private func trialCard(plan: AppConfig.PlanInfo) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-
-            // Badges row
-            HStack {
-                Label("MOST POPULAR", systemImage: "star.fill")
-                    .font(.caption2).fontWeight(.black)
-                    .foregroundStyle(Color(red: 0.5, green: 0.35, blue: 0))
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(.yellow.opacity(0.22))
-                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(.yellow.opacity(0.5), lineWidth: 1))
-                    .cornerRadius(20)
-
-                Spacer()
-
-                Text("FREE TRIAL")
-                    .font(.caption2).fontWeight(.heavy)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(Color.success)
-                    .cornerRadius(20)
-            }
-
-            // Pricing headline
-            VStack(alignment: .leading, spacing: 4) {
-                Text("7-Day Free Trial")
-                    .font(.title2).fontWeight(.heavy)
-
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("$\(Int(plan.monthlyPrice))")
-                        .font(.largeTitle).fontWeight(.heavy)
-                        .foregroundStyle(Color.brand)
-                    Text("/ month after trial ends")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text("No charge until Day 8  ·  Cancel anytime")
-                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
 
-            Divider().opacity(0.4)
+            // 2. Timeline
+            trialTimeline(plan: plan)
 
-            // Features
-            VStack(alignment: .leading, spacing: 10) {
-                featureRow("10 AI repair analyses per month",  icon: "bolt.fill")
-                featureRow("Step-by-step repair guides",       icon: "list.bullet.clipboard.fill")
-                featureRow("Photo-based AI diagnosis",         icon: "camera.fill")
-                featureRow("10 saved repairs in history",      icon: "clock.fill")
+            // 3. Trust badge
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color.success)
+                Text("No Payment Due Now")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
             }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 18)
+            .background(Color.success.opacity(0.08))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .stroke(Color.success.opacity(0.25), lineWidth: 1)
+            )
+            .cornerRadius(24)
 
-            // CTA
+            // 4. Primary CTA
             Button {
                 purchaseViaApple(productId: AppConfig.StoreKitProducts.starterMonthly)
             } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.brandBlue, Color.brand],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
+                Text("Start My \(AppConfig.trialPeriodDays)-Day Free Trial")
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.brandBlue, Color.brand],
+                            startPoint: .leading,
+                            endPoint: .trailing
                         )
-                        .shadow(color: Color.brand.opacity(0.4), radius: 8, y: 4)
-
-                    HStack(spacing: 8) {
-                        Image(systemName: "star.fill").foregroundStyle(.yellow)
-                        Text("Start 7-Day Free Trial")
-                            .fontWeight(.bold)
-                    }
+                    )
                     .foregroundStyle(.white)
-                }
-                .frame(height: 54)
+                    .cornerRadius(16)
+                    .shadow(color: Color.brand.opacity(0.35), radius: 12, y: 5)
             }
             .disabled(revenueCatService.purchaseInProgress)
 
-            Text("No charge for \(AppConfig.trialPeriodDays) days  ·  $\(Int(plan.monthlyPrice))/mo after  ·  Cancel anytime")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // 5. Restore + sign-out
+            VStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Text("Already purchased?")
+                        .foregroundStyle(.secondary)
+                    Button {
+                        Task { await revenueCatService.restorePurchases() }
+                    } label: {
+                        Text("Restore")
+                            .foregroundStyle(Color.brand)
+                    }
+                }
+                .font(.subheadline)
+            }
+
+            // 6. Legal
+            Text("\(AppConfig.trialPeriodDays) days free, then $\(Int(plan.monthlyPrice))/month. Billed monthly. Cancel in App Store Settings anytime before Day \(AppConfig.trialPeriodDays + 1). Subscriptions auto-renew.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
+
+            // 7. Other plans disclosure
+            otherPlansSection
+
+            // 8. Footer links
+            footerLinks
+        }
+    }
+
+    // MARK: - Trial Timeline
+
+    private func trialTimeline(plan: AppConfig.PlanInfo) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            timelineRow(
+                icon: "checkmark.circle.fill",
+                iconColor: Color.success,
+                title: "Today",
+                description: "Unlock all AI repair features — completely free"
+            )
+            timelineConnector
+            timelineRow(
+                icon: "bell.fill",
+                iconColor: Color.brandBlue,
+                title: "Day \(AppConfig.trialPeriodDays - 1) — Reminder",
+                description: "We'll remind you before your trial ends"
+            )
+            timelineConnector
+            timelineRow(
+                icon: "creditcard.fill",
+                iconColor: Color.secondary,
+                title: "Day \(AppConfig.trialPeriodDays + 1) — Billing Starts",
+                description: "$\(Int(plan.monthlyPrice))/month unless you cancel"
+            )
         }
         .padding(20)
         .background(Color.cardBackground)
-        .cornerRadius(20)
+        .cornerRadius(18)
         .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.brandBlue.opacity(0.55), Color.brand.opacity(0.55)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 2
-                )
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
         )
-        .shadow(color: Color.brandBlue.opacity(0.10), radius: 18, y: 6)
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
     }
 
-    private func featureRow(_ text: String, icon: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .foregroundStyle(Color.brand)
-                .frame(width: 20)
-            Text(text)
-                .font(.subheadline)
+    private func timelineRow(icon: String, iconColor: Color, title: String, description: String) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.1))
+                    .frame(width: 44, height: 44)
+                Image(systemName: icon)
+                    .foregroundStyle(iconColor)
+                    .font(.system(size: 18, weight: .medium))
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 10)
+
             Spacer()
         }
     }
 
-    // MARK: - Paid Plans Section
+    private var timelineConnector: some View {
+        HStack(spacing: 16) {
+            Rectangle()
+                .fill(Color.secondary.opacity(0.2))
+                .frame(width: 2, height: 22)
+                .frame(width: 44)
+            Spacer()
+        }
+    }
 
-    private var paidPlansSection: some View {
-        VStack(spacing: 14) {
-            // Header + billing toggle
-            HStack(alignment: .center) {
-                Text(isTrialEligible ? "Or choose a plan:" : "Choose a plan:")
-                    .font(.headline)
-                Spacer()
-                HStack(spacing: 6) {
-                    Text("Annual")
-                        .font(.caption)
-                        .foregroundStyle(isAnnual ? Color.brand : .secondary)
-                    Toggle("Annual", isOn: $isAnnual)
-                        .labelsHidden()
-                        .tint(Color.brand)
-                }
+    // MARK: - No Trial Flow (trial already used)
+
+    private var noTrialContent: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 10) {
+                Text("Choose your plan")
+                    .font(.system(size: 32, weight: .heavy))
+                    .multilineTextAlignment(.center)
+                Text("Unlock AI-powered repair guidance anytime.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
 
-            if isAnnual {
-                Text("Save up to 28% with annual billing")
-                    .font(.caption)
-                    .foregroundStyle(Color.success)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
+            billingToggle
 
-            // Pro + Premium side by side
             HStack(spacing: 12) {
                 if let pro = proPlan {
-                    planCard(plan: pro, isAnnual: isAnnual, accentColor: Color.brandBlue, badge: "Best Value")
+                    planCard(plan: pro, accentColor: Color.brandBlue, badge: "Best Value")
                 }
                 if let premium = premiumPlan {
-                    planCard(plan: premium, isAnnual: isAnnual, accentColor: Color.brand, badge: nil)
+                    planCard(plan: premium, accentColor: Color.brand, badge: nil)
                 }
+            }
+
+            if let starter = starterPlan {
+                starterFallbackRow(plan: starter)
+            }
+
+            VStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Text("Already purchased?")
+                        .foregroundStyle(.secondary)
+                    Button {
+                        Task { await revenueCatService.restorePurchases() }
+                    } label: {
+                        Text("Restore")
+                            .foregroundStyle(Color.brand)
+                    }
+                }
+                .font(.subheadline)
+            }
+
+            footerLinks
+        }
+    }
+
+    // MARK: - Other Plans Section (trial flow)
+
+    private var otherPlansSection: some View {
+        VStack(spacing: 16) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.3)) { showAllPlans.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(showAllPlans ? "Hide other plans" : "Explore other plans")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: showAllPlans ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if showAllPlans {
+                VStack(spacing: 14) {
+                    billingToggle
+
+                    HStack(spacing: 12) {
+                        if let pro = proPlan {
+                            planCard(plan: pro, accentColor: Color.brandBlue, badge: "Best Value")
+                        }
+                        if let premium = premiumPlan {
+                            planCard(plan: premium, accentColor: Color.brand, badge: nil)
+                        }
+                    }
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
     }
 
-    private func planCard(
-        plan: AppConfig.PlanInfo,
-        isAnnual: Bool,
-        accentColor: Color,
-        badge: String?
-    ) -> some View {
+    // MARK: - Billing Toggle
+
+    private var billingToggle: some View {
+        HStack {
+            Text("Billing")
+                .font(.subheadline.weight(.medium))
+            Spacer()
+            HStack(spacing: 8) {
+                Text("Annual")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isAnnual ? Color.brand : .secondary)
+                Toggle("Annual", isOn: $isAnnual)
+                    .labelsHidden()
+                    .tint(Color.brand)
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    // MARK: - Plan Card
+
+    private func planCard(plan: AppConfig.PlanInfo, accentColor: Color, badge: String?) -> some View {
         let price     = isAnnual ? plan.annualPrice : plan.monthlyPrice
         let productId = AppConfig.StoreKitProducts.productId(plan: plan.id, billing: isAnnual ? "annual" : "monthly")
 
         return VStack(alignment: .leading, spacing: 12) {
-            // Badge
-            if let badge = badge {
+            if let badge {
                 Text(badge)
-                    .font(.caption2).fontWeight(.bold)
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(accentColor)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(accentColor.opacity(0.12))
                     .cornerRadius(10)
             } else {
-                Color.clear.frame(height: 20) // alignment spacer
+                Color.clear.frame(height: 20)
             }
 
-            // Name + model
             VStack(alignment: .leading, spacing: 2) {
                 Text(plan.displayName)
-                    .font(.headline).fontWeight(.bold)
-                Text(plan.aiModel)
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.headline.weight(.bold))
+                Text(plan.credits == 100 ? "Premium AI" : plan.credits == 25 ? "Advanced AI" : "Standard AI")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
-            // Price
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(String(format: "$%.0f", price))
-                    .font(.title2).fontWeight(.heavy)
+                    .font(.title2.weight(.heavy))
                     .foregroundStyle(accentColor)
                 Text("/mo")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if isAnnual, let savings = annualSavings(plan: plan) {
                 Text(savings)
-                    .font(.caption2).fontWeight(.semibold)
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.success)
             }
 
             Divider().opacity(0.5)
 
-            // Features
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(plan.features.prefix(4), id: \.self) { feature in
                     HStack(spacing: 6) {
@@ -323,12 +373,11 @@ struct PaywallView: View {
 
             Spacer()
 
-            // CTA
             Button {
                 purchaseViaApple(productId: productId)
             } label: {
                 Text("Choose \(plan.displayName)")
-                    .font(.footnote).fontWeight(.semibold)
+                    .font(.footnote.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
                     .background(accentColor)
@@ -348,7 +397,7 @@ struct PaywallView: View {
         .shadow(color: accentColor.opacity(0.08), radius: 8, y: 3)
     }
 
-    // MARK: - Starter Fallback (trial used)
+    // MARK: - Starter Fallback Row
 
     private func starterFallbackRow(plan: AppConfig.PlanInfo) -> some View {
         let price     = isAnnual ? plan.annualPrice : plan.monthlyPrice
@@ -357,16 +406,17 @@ struct PaywallView: View {
         return HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Starter Plan")
-                    .font(.subheadline).fontWeight(.semibold)
+                    .font(.subheadline.weight(.semibold))
                 Text(String(format: "$%.0f / month", price))
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             Button {
                 purchaseViaApple(productId: productId)
             } label: {
                 Text("Get Starter")
-                    .font(.footnote).fontWeight(.semibold)
+                    .font(.footnote.weight(.semibold))
                     .padding(.horizontal, 18).padding(.vertical, 9)
                     .background(Color.brand)
                     .foregroundStyle(.white)
@@ -377,32 +427,16 @@ struct PaywallView: View {
         .padding(16)
         .background(Color.cardBackground)
         .cornerRadius(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+        )
     }
 
     // MARK: - Footer
 
-    private var footerSection: some View {
-        VStack(spacing: 14) {
-            HStack(spacing: 20) {
-                Label("Cancel anytime",  systemImage: "checkmark.circle")
-                Label("Apple secured",   systemImage: "lock.shield")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            Text("Subscriptions auto-renew unless cancelled at least 24 hours before the period end.")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-
-            Button {
-                Task { await revenueCatService.restorePurchases() }
-            } label: {
-                Text("Restore Purchases")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
+    private var footerLinks: some View {
+        VStack(spacing: 12) {
             Button {
                 authVM.signOut()
             } label: {
@@ -411,7 +445,6 @@ struct PaywallView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.top, 4)
     }
 
     // MARK: - Helpers
@@ -420,10 +453,8 @@ struct PaywallView: View {
         Task {
             do {
                 try await revenueCatService.purchase(productId: productId)
-                // On success, userVM Firestore listener updates hasActiveAccess
-                // and the paywall dismisses automatically.
             } catch {
-                purchaseError     = error.localizedDescription
+                purchaseError    = error.localizedDescription
                 showPurchaseError = true
             }
         }

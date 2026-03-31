@@ -43,6 +43,18 @@ final class UserViewModel {
         profileLoaded = false
     }
 
+    // MARK: - Onboarding
+
+    func completeOnboarding(homeType: String, diyLevel: String, repairType: String) async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        try? await Firestore.db.collection("users").document(uid).updateData([
+            "hasCompletedOnboarding": true,
+            "userHomeType":  homeType,
+            "userDIYLevel":  diyLevel,
+            "userRepairType": repairType
+        ])
+    }
+
     // MARK: - Update display name (delegated to AuthViewModel, but exposed here too)
 
     func updateDisplayName(_ name: String, uid: String) async -> Bool {
