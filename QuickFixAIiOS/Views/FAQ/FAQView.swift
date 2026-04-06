@@ -33,7 +33,7 @@ struct FAQView: View {
         }
     }
 
-    private let faqs: [(question: String, answer: String)] = [
+    private var faqs: [(question: String, answer: String)] {[
         (
             "How does the AI repair guidance work?",
             "Describe your home repair issue in plain language (or upload a photo) and our AI generates a step-by-step repair guide tailored to your specific problem, complete with tools, materials, and time estimates."
@@ -47,8 +47,8 @@ struct FAQView: View {
             "Yes. We use Firebase Authentication with encrypted storage. Your repair data is private to your account and never shared."
         ),
         (
-            "What is the 5-day free trial?",
-            "New users can try the Starter plan for 5 days at no cost. Your card is required upfront but won't be charged until the trial ends. You can cancel anytime during the trial."
+            "What is the \(AppConfig.trialPeriodDays)-day free trial?",
+            "New users can try the Starter plan for \(AppConfig.trialPeriodDays) days at no cost. Your card is required upfront but won't be charged until the trial ends. You can cancel anytime during the trial."
         ),
         (
             "Can I cancel my subscription anytime?",
@@ -71,8 +71,8 @@ struct FAQView: View {
             "Each AI repair analysis uses 1 credit. Credits reset monthly. Starter gets 10, Pro 25, Premium 100."
         ),
         (
-            "How does the community feature work?",
-            "Share before-and-after photos of completed repairs with other QuickFix AI members. Like and engage with other homeowners' success stories."
+            "Can I use QuickFix AI offline?",
+            "An internet connection is required to generate AI repair guides, as the analysis runs on our servers. Previously saved guides in your history are accessible while offline."
         )
-    ]
+    ]}
 }

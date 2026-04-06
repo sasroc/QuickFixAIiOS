@@ -94,7 +94,7 @@ final class RevenueCatService {
                 .document(uid)
                 .updateData(data)
         } catch {
-            purchaseError = "Purchase successful! If the app doesn't unlock shortly, tap 'Restore Purchases'."
+            purchaseError = "Your subscription is active. Tap \"Restore Purchases\" if the app doesn't update automatically."
         }
     }
 
