@@ -7,67 +7,101 @@ struct InputFormView: View {
     @Environment(RepairViewModel.self) private var repairVM
 
     @FocusState private var isFocused: Bool
-    @State private var description   = ""
+    @State private var description    = ""
     @State private var selectedPhoto: PhotosPickerItem? = nil
     @State private var selectedImage: UIImage? = nil
-    @State private var isRecording = false
-    @State private var pulse = false
-    private let recorder = SpeechRecorder()
-    @State private var showCamera    = false
+    @State private var isRecording    = false
+    @State private var pulse          = false
+    @State private var showCamera     = false
+    @State private var isScanMode     = false
+    private let recorder              = SpeechRecorder()
 
+    // Scan flow: no description required (image alone is enough)
     private var canSubmit: Bool {
-        !description.trimmingCharacters(in: .whitespaces).isEmpty && !repairVM.isAnalyzing
+        let hasText = !description.trimmingCharacters(in: .whitespaces).isEmpty
+        return (hasText || selectedImage != nil) && !repairVM.isAnalyzing
     }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                // Hero banner
-                HStack(spacing: 14) {
+            VStack(spacing: 24) {
+
+                // ── Scan hero ────────────────────────────────────────────
+                VStack(spacing: 16) {
+                    // Icon
                     ZStack {
                         Circle()
-                            .fill(LinearGradient(
-                                colors: [Color.brandBlue, Color.brand],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            ))
-                            .frame(width: 50, height: 50)
-                        Image(systemName: "wand.and.stars")
-                            .font(.system(size: 22, weight: .medium))
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.brandBlue, Color.brand],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 80, height: 80)
+                            .shadow(color: Color.brand.opacity(0.4), radius: 16, y: 6)
+
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: 36, weight: .medium))
                             .foregroundStyle(.white)
                     }
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("AI Repair Assistant")
-                            .font(.headline).fontWeight(.heavy)
-                        Text("Describe your issue for a step-by-step guide")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .padding(16)
-                .background(
-                    LinearGradient(
-                        colors: [Color.brandBlue.opacity(0.06), Color.brand.opacity(0.06)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                )
-                .cornerRadius(16)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color.brandBlue.opacity(0.2), Color.brand.opacity(0.2)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1.5
-                        )
-                )
-                .padding(.horizontal)
-                .padding(.top, 16)
 
-                // Text input card
+                    VStack(spacing: 6) {
+                        Text("Scan Any Repair Issue")
+                            .font(.title2).fontWeight(.heavy)
+                        Text("Point your camera at the problem and get\na full step-by-step repair guide instantly.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    // Scan button
+                    Button {
+                        isScanMode = true
+                        showCamera = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                            Text("Scan Issue")
+                                .font(.title3).fontWeight(.bold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.brandBlue, Color.brand],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .foregroundStyle(.white)
+                        .cornerRadius(16)
+                        .shadow(color: Color.brand.opacity(0.4), radius: 12, y: 5)
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(.horizontal)
+                .padding(.top, 28)
+
+                // ── Divider ───────────────────────────────────────────────
+                HStack(spacing: 12) {
+                    Rectangle()
+                        .fill(Color(UIColor.separator))
+                        .frame(height: 1)
+                    Text("or describe manually")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                    Rectangle()
+                        .fill(Color(UIColor.separator))
+                        .frame(height: 1)
+                }
+                .padding(.horizontal)
+
+                // ── Text input card ───────────────────────────────────────
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // Card header: label + voice button
                     HStack(alignment: .center) {
                         HStack(spacing: 6) {
                             Image(systemName: "text.bubble.fill")
@@ -97,10 +131,9 @@ struct InputFormView: View {
 
                     Divider()
 
-                    // Text editor with overlay placeholder
                     ZStack(alignment: .topLeading) {
                         if description.isEmpty {
-                            Text("e.g. My kitchen faucet is dripping slowly, it's been leaking for 2 days...")
+                            Text("e.g. My kitchen faucet is dripping slowly...")
                                 .foregroundStyle(.tertiary)
                                 .font(.body)
                                 .padding(.horizontal, 14)
@@ -110,7 +143,7 @@ struct InputFormView: View {
                         TextEditor(text: $description)
                             .scrollContentBackground(.hidden)
                             .font(.body)
-                            .frame(minHeight: 130)
+                            .frame(minHeight: 110)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
                             .focused($isFocused)
@@ -118,7 +151,6 @@ struct InputFormView: View {
 
                     Divider()
 
-                    // Footer: hint + character count
                     HStack {
                         if isRecording {
                             HStack(spacing: 5) {
@@ -168,7 +200,7 @@ struct InputFormView: View {
                 .animation(.easeInOut(duration: 0.2), value: isFocused)
                 .padding(.horizontal)
 
-                // Image upload
+                // ── Gallery photo picker ──────────────────────────────────
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Add a Photo (Optional)").font(.headline)
 
@@ -177,7 +209,7 @@ struct InputFormView: View {
                             Image(uiImage: image)
                                 .resizable()
                                 .scaledToFill()
-                                .frame(height: 180)
+                                .frame(height: 160)
                                 .clipped()
                                 .cornerRadius(10)
 
@@ -193,44 +225,25 @@ struct InputFormView: View {
                             .padding(8)
                         }
                     } else {
-                        HStack(spacing: 12) {
-                            PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                                VStack(spacing: 6) {
-                                    Image(systemName: "photo.on.rectangle")
-                                        .font(.title3)
-                                    Text("Choose Photo")
-                                        .font(.footnote).fontWeight(.medium)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(Color.brandBlue.opacity(0.07))
-                                .foregroundStyle(Color.brandBlue)
-                                .cornerRadius(12)
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandBlue.opacity(0.2), lineWidth: 1.5))
+                        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "photo.on.rectangle")
+                                    .font(.subheadline.weight(.medium))
+                                Text("Choose from Library")
+                                    .font(.subheadline).fontWeight(.medium)
                             }
-
-                            Button {
-                                showCamera = true
-                            } label: {
-                                VStack(spacing: 6) {
-                                    Image(systemName: "camera.fill")
-                                        .font(.title3)
-                                    Text("Camera")
-                                        .font(.footnote).fontWeight(.medium)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(Color.brand.opacity(0.07))
-                                .foregroundStyle(Color.brand)
-                                .cornerRadius(12)
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brand.opacity(0.2), lineWidth: 1.5))
-                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Color.brandBlue.opacity(0.07))
+                            .foregroundStyle(Color.brandBlue)
+                            .cornerRadius(12)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandBlue.opacity(0.2), lineWidth: 1.5))
                         }
                     }
                 }
                 .padding(.horizontal)
 
-                // Submit
+                // ── Submit (text/gallery path) ────────────────────────────
                 Button {
                     Task { await repairVM.analyze(description: description, image: selectedImage) }
                 } label: {
@@ -266,9 +279,16 @@ struct InputFormView: View {
                 }
             }
         }
+        .onChange(of: selectedImage) { _, image in
+            // Auto-analyze when photo captured via Scan button
+            if isScanMode, let image {
+                isScanMode = false
+                Task { await repairVM.analyze(description: "", image: image) }
+            }
+        }
         .onChange(of: repairVM.currentGuide) { _, guide in
             if guide != nil {
-                description  = ""
+                description   = ""
                 selectedImage = nil
                 selectedPhoto = nil
             }

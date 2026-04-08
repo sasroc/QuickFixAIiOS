@@ -18,10 +18,14 @@ final class RepairViewModel {
     // MARK: - Analyze
 
     func analyze(description: String, image: UIImage?) async {
-        guard !description.trimmingCharacters(in: .whitespaces).isEmpty else {
-            errorMessage = "Please describe the repair issue."
+        let trimmed = description.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty || image != nil else {
+            errorMessage = "Please scan an issue or describe the repair."
             return
         }
+        let effectiveDescription = trimmed.isEmpty
+            ? "Analyze this home repair issue from the attached photo and provide a full repair guide."
+            : trimmed
 
         isAnalyzing = true
         errorMessage = nil
@@ -30,7 +34,7 @@ final class RepairViewModel {
         startTimer()
         defer { isAnalyzing = false; stopTimer() }
 
-        var body: [String: Any] = ["description": description]
+        var body: [String: Any] = ["description": effectiveDescription]
 
         if let uid = Auth.auth().currentUser?.uid {
             body["uid"] = uid
@@ -50,7 +54,7 @@ final class RepairViewModel {
                 requiresAuth: false
             )
 
-            let title = String(description.prefix(120))
+            let title = String(effectiveDescription.prefix(120))
             let steps = response.steps.enumerated().map { i, s in
                 RepairStep(id: i, description: s)
             }
