@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 struct PostAuthOnboardingView: View {
     @Environment(AuthViewModel.self) private var authVM
@@ -689,20 +690,32 @@ private struct AhaDemoStepView: View {
     let repairType: String
     let onComplete: () -> Void
 
-    // Animation state — drives the entire auto-playing sequence
-    @State private var showForm        = false
-    @State private var buttonPressed   = false
-    @State private var rippleScale: CGFloat = 0.3
-    @State private var rippleOpacity: Double = 0
-    @State private var showGuide       = false
+    @Environment(\.requestReview) private var requestReview
+
+    // ── Scan phase ──
+    @State private var showHeader        = false
+    @State private var showViewfinder    = false
+    @State private var scanLineOffset: CGFloat = -80
+    @State private var scanLineVisible   = false
+    @State private var detectionPulse    = false
+    @State private var showDetectionBox  = false
+    @State private var cornersGlow       = false
+
+    // ── Analyzing phase ──
+    @State private var showAnalyzing     = false
+    @State private var analyzePhase      = -1     // 0,1,2 checklist items
+    @State private var analyzeProgress: Double = 0
+
+    // ── Guide phase ──
+    @State private var showGuide         = false
     @State private var confidence: Double = 0
-    @State private var step1Visible    = false
+    @State private var step1Visible      = false
     @State private var markCompletePulse = false
-    @State private var step1Complete   = false
-    @State private var nextPulse       = false
-    @State private var showStep2       = false
-    @State private var showTools       = false
-    @State private var showCTA         = false
+    @State private var step1Complete     = false
+    @State private var nextPulse         = false
+    @State private var showStep2         = false
+    @State private var showTools         = false
+    @State private var showCTA           = false
 
     private var demo: DemoContent {
         switch repairType {
@@ -710,7 +723,7 @@ private struct AhaDemoStepView: View {
             return DemoContent(
                 title: "Fix a Dripping Kitchen Faucet",
                 icon: "drop.fill",
-                description: "My kitchen faucet has been dripping all night and I can't get it to stop.",
+                description: "Dripping kitchen faucet detected",
                 steps: [
                     "Turn off the water supply valves under the sink",
                     "Remove the handle and replace the worn cartridge",
@@ -723,7 +736,7 @@ private struct AhaDemoStepView: View {
             return DemoContent(
                 title: "Replace a Faulty Outlet",
                 icon: "bolt.fill",
-                description: "One of my wall outlets stopped working completely. Nothing plugged in turns on.",
+                description: "Non-functional wall outlet detected",
                 steps: [
                     "Turn off the circuit breaker for that outlet",
                     "Disconnect wires from old outlet, note wire colors",
@@ -736,7 +749,7 @@ private struct AhaDemoStepView: View {
             return DemoContent(
                 title: "Replace HVAC Air Filter",
                 icon: "thermometer.medium",
-                description: "My AC isn't cooling as well as it used to. I think the air filter needs replacing.",
+                description: "Clogged HVAC air filter detected",
                 steps: [
                     "Locate your air handler and note the filter size",
                     "Slide out the old filter and dispose of it",
@@ -749,7 +762,7 @@ private struct AhaDemoStepView: View {
             return DemoContent(
                 title: "Patch a Drywall Hole",
                 icon: "wrench.and.screwdriver.fill",
-                description: "There's a hole in my drywall from a doorknob, about 3 inches wide.",
+                description: "Drywall damage detected",
                 steps: [
                     "Cut a clean square around the damaged area",
                     "Secure a backer board and attach the patch",
@@ -771,29 +784,37 @@ private struct AhaDemoStepView: View {
             .ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 16) {
-                    // Header
+                VStack(spacing: 20) {
+
+                    // ── Header ──
                     VStack(spacing: 6) {
-                        Text("See QuickFix AI in action")
-                            .font(.system(size: 22, weight: .heavy))
+                        Text("Point. Scan. Fix.")
+                            .font(.system(size: 26, weight: .heavy))
                             .foregroundStyle(.white)
-                        Text("Watch AI handle a real repair")
+                        Text("AI generates a full repair guide instantly")
                             .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.75))
+                            .foregroundStyle(.white.opacity(0.78))
                     }
                     .multilineTextAlignment(.center)
                     .padding(.top, 8)
-                    .opacity(showForm ? 1 : 0)
-                    .offset(y: showForm ? 0 : 16)
-                    .animation(.easeOut(duration: 0.4), value: showForm)
+                    .opacity(showHeader ? 1 : 0)
+                    .offset(y: showHeader ? 0 : 14)
+                    .animation(.easeOut(duration: 0.4), value: showHeader)
 
-                    // INPUT FORM — fades away when guide appears
-                    if !showGuide {
-                        inputFormCard
+                    // ── Scan viewfinder OR analyzing OR guide ──
+                    if !showAnalyzing && !showGuide {
+                        scanViewfinder
                             .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     }
 
-                    // GUIDE — slides in after form disappears
+                    if showAnalyzing && !showGuide {
+                        analyzingCard
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .scale(scale: 0.96)),
+                                removal: .opacity
+                            ))
+                    }
+
                     if showGuide {
                         guideContent
                             .transition(.asymmetric(
@@ -802,7 +823,6 @@ private struct AhaDemoStepView: View {
                             ))
                     }
 
-                    // CTA — last thing to appear
                     if showCTA {
                         ctaSection
                             .transition(.opacity.combined(with: .offset(y: 16)))
@@ -818,96 +838,214 @@ private struct AhaDemoStepView: View {
         .onAppear { startSequence() }
     }
 
-    // MARK: - Input Form Card
+    // MARK: - Scan Viewfinder
 
-    private var inputFormCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Description field (mock)
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Describe the problem", systemImage: "text.alignleft")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.inputBackground)
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.brand.opacity(0.45), lineWidth: 1.5)
-                    Text(demo.description)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                        .padding(10)
-                }
-                .frame(minHeight: 76)
-            }
-
-            // Photo row (mock)
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.inputBackground)
-                    .frame(width: 62, height: 62)
-                    .overlay(
-                        Image(systemName: "camera.fill")
-                            .foregroundStyle(Color.secondary)
-                            .font(.system(size: 22))
-                    )
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Add a photo (optional)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text("Helps AI give more accurate guidance")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-
-            Divider().opacity(0.35)
-
-            // "Get Repair Guide" button with tap animation
+    private var scanViewfinder: some View {
+        VStack(spacing: 0) {
+            // Phone frame
             ZStack {
-                // Expanding ripple ring
-                Circle()
-                    .stroke(Color.brand.opacity(0.5), lineWidth: 2)
-                    .scaleEffect(rippleScale)
-                    .opacity(rippleOpacity)
-                    .allowsHitTesting(false)
+                // Dark "camera feed" background
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.black.opacity(0.82))
+                    .frame(height: 240)
 
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 15, weight: .bold))
-                    Text("Get Repair Guide")
-                        .font(.system(size: 16, weight: .bold))
+                // Real repair photo — fills the viewfinder
+                Image("WallRepairDemo")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 240)
+                    .clipped()
+                    .overlay(Color.black.opacity(0.18))
+
+                // Detection bounding box
+                if showDetectionBox {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.brand, Color.brandBlue],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 2
+                        )
+                        .frame(width: 110, height: 72)
+                        .offset(x: -18, y: -12)
+                        .scaleEffect(detectionPulse ? 1.04 : 1.0)
+                        .animation(
+                            .easeInOut(duration: 0.6).repeatForever(autoreverses: true),
+                            value: detectionPulse
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.85)))
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 15)
-                .background(
-                    LinearGradient(
-                        colors: [Color.brandBlue, Color.brand],
-                        startPoint: .leading, endPoint: .trailing
-                    )
-                )
-                .foregroundStyle(.white)
-                .cornerRadius(12)
-                .scaleEffect(buttonPressed ? 0.95 : 1.0)
-                .shadow(
-                    color: Color.brand.opacity(buttonPressed ? 0.1 : 0.35),
-                    radius: buttonPressed ? 3 : 10, y: buttonPressed ? 1 : 4
-                )
-                .animation(.easeInOut(duration: 0.13), value: buttonPressed)
+
+                // Detection label
+                if showDetectionBox {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Label(demo.description, systemImage: demo.icon)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.brand.opacity(0.85))
+                                .cornerRadius(8)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 14)
+                    }
+                    .frame(height: 240)
+                }
+
+                // Sweeping scan line
+                if scanLineVisible {
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.clear, Color.brand.opacity(0.7), Color.clear],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .frame(height: 2)
+                        .offset(y: scanLineOffset)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                }
+
+                // Corner brackets
+                ViewfinderCorners(glowing: cornersGlow)
+                    .frame(height: 240)
             }
-            .frame(height: 52)
+            .frame(height: 240)
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(cornersGlow ? Color.brand.opacity(0.6) : Color.white.opacity(0.12), lineWidth: 1.5)
+                    .animation(.easeInOut(duration: 0.5), value: cornersGlow)
+            )
+
+            // Bottom hint bar
+            HStack(spacing: 8) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.brand)
+                Text("Scanning for repair issues...")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.8))
+                Spacer()
+                ProgressView().tint(Color.brand).scaleEffect(0.75)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.white.opacity(0.1))
+            .cornerRadius(12)
+            .padding(.top, 10)
         }
-        .padding(18)
+        .opacity(showViewfinder ? 1 : 0)
+        .scaleEffect(showViewfinder ? 1 : 0.94)
+        .animation(.spring(response: 0.5, dampingFraction: 0.78).delay(0.1), value: showViewfinder)
+    }
+
+    // MARK: - Analyzing Card
+
+    private let analyzeItems: [(String, String)] = [
+        ("Identifying issue type",       "magnifyingglass"),
+        ("Researching repair steps",     "doc.text.magnifyingglass"),
+        ("Building your repair guide",   "sparkles"),
+    ]
+
+    private var analyzingCard: some View {
+        VStack(spacing: 18) {
+            // Pulsing AI icon
+            ZStack {
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .fill(Color.brand.opacity(0.07 - Double(i) * 0.02))
+                        .frame(width: CGFloat(64 + i * 22), height: CGFloat(64 + i * 22))
+                        .scaleEffect(analyzePhase >= 0 ? 1.0 : 0.4)
+                        .animation(.easeOut(duration: 0.6).delay(Double(i) * 0.1), value: analyzePhase >= 0)
+                }
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.brandBlue, Color.brand],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )
+                    )
+                    .scaleEffect(analyzePhase >= 0 ? 1 : 0.4)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.6), value: analyzePhase >= 0)
+            }
+
+            VStack(spacing: 4) {
+                Text("AI Analyzing Photo")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.primary)
+                Text("Generating your personalized repair guide")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            // Progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.12)).frame(height: 5)
+                    Capsule()
+                        .fill(LinearGradient(
+                            colors: [Color.brandBlue, Color.brand],
+                            startPoint: .leading, endPoint: .trailing
+                        ))
+                        .frame(width: geo.size.width * analyzeProgress, height: 5)
+                        .animation(.easeInOut(duration: 0.6), value: analyzeProgress)
+                }
+            }
+            .frame(height: 5)
+            .padding(.horizontal, 4)
+
+            // Checklist
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(analyzeItems.enumerated()), id: \.offset) { index, item in
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.secondary.opacity(0.1))
+                                .frame(width: 30, height: 30)
+                            if analyzePhase > index {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(Color.brand)
+                                    .transition(.scale.combined(with: .opacity))
+                            } else if analyzePhase == index {
+                                ProgressView().tint(Color.brandBlue).scaleEffect(0.65)
+                            } else {
+                                Image(systemName: item.1)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Color.secondary.opacity(0.4))
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.25), value: analyzePhase)
+
+                        Text(item.0)
+                            .font(.subheadline)
+                            .foregroundStyle(analyzePhase >= index ? Color.primary : Color.secondary.opacity(0.5))
+                            .animation(.easeOut(duration: 0.3), value: analyzePhase)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(Color.appBackground)
+            .cornerRadius(14)
+        }
+        .padding(20)
         .background(Color.cardBackground)
         .cornerRadius(18)
         .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
-        .opacity(showForm ? 1 : 0)
-        .offset(y: showForm ? 0 : 20)
-        .animation(.spring(response: 0.5, dampingFraction: 0.78).delay(0.1), value: showForm)
     }
 
-    // MARK: - Guide Content (appears after form)
+    // MARK: - Guide Content
 
     private var guideContent: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -930,7 +1068,6 @@ private struct AhaDemoStepView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                // AI badge
                 Label("AI", systemImage: "sparkles")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(Color.brand)
@@ -988,7 +1125,7 @@ private struct AhaDemoStepView: View {
 
             Divider().opacity(0.35)
 
-            // Step card (step 1 → step 2 with slide transition)
+            // Step cards (step 1 → step 2)
             ZStack {
                 if !showStep2 && step1Visible {
                     stepCard(
@@ -1019,22 +1156,17 @@ private struct AhaDemoStepView: View {
             }
             .frame(minHeight: 110)
 
-            // Prev / Next navigation (mock — Next pulses when auto-advancing)
             if step1Visible {
                 HStack {
                     Label("Previous", systemImage: "chevron.left")
                         .font(.subheadline)
                         .foregroundStyle(Color.secondary.opacity(0.4))
-
                     Spacer()
-
                     Text("Step \(showStep2 ? 2 : 1) of \(demo.steps.count)")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .animation(.easeOut, value: showStep2)
-
                     Spacer()
-
                     HStack(spacing: 4) {
                         Text("Next")
                         Image(systemName: "chevron.right")
@@ -1047,12 +1179,10 @@ private struct AhaDemoStepView: View {
                 .transition(.opacity)
             }
 
-            // Tools & Materials (appear below steps)
             if showTools {
                 Divider().opacity(0.35)
-
                 HStack(alignment: .top, spacing: 12) {
-                    toolsCard(title: "Tools", icon: "wrench.fill", items: demo.tools, accentColor: Color.brand)
+                    toolsCard(title: "Tools",     icon: "wrench.fill",      items: demo.tools,     accentColor: Color.brand)
                     toolsCard(title: "Materials", icon: "shippingbox.fill", items: demo.materials, accentColor: Color.brandBlue)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -1069,7 +1199,6 @@ private struct AhaDemoStepView: View {
     private func stepCard(index: Int, text: String, isComplete: Bool, markPulse: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                // Step number circle
                 ZStack {
                     if isComplete {
                         Circle()
@@ -1106,7 +1235,6 @@ private struct AhaDemoStepView: View {
 
                 Spacer()
 
-                // Mark Complete button
                 Label(
                     isComplete ? "Completed" : "Mark Complete",
                     systemImage: isComplete ? "checkmark.circle.fill" : "circle"
@@ -1135,7 +1263,6 @@ private struct AhaDemoStepView: View {
             Label(title, systemImage: icon)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(accentColor)
-
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(items, id: \.self) { item in
                     HStack(spacing: 8) {
@@ -1185,35 +1312,116 @@ private struct AhaDemoStepView: View {
     // MARK: - Animation Sequence
 
     private func startSequence() {
-        at(0.3)  { showForm = true }
-        at(1.3)  { tapButton() }
-        at(2.0)  { withAnimation(.spring(response: 0.55, dampingFraction: 0.8)) { showGuide = true } }
-        at(2.6)  { confidence = 0.94 }
-        at(3.1)  { withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) { step1Visible = true } }
-        at(4.0)  { markCompletePulse = true }
-        at(4.18) { markCompletePulse = false }
-        at(4.3)  { withAnimation(.spring(response: 0.4, dampingFraction: 0.65)) { step1Complete = true } }
-        at(5.0)  { nextPulse = true }
-        at(5.18) { nextPulse = false }
-        at(3.4)  { withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showTools = true } }
-        at(5.3)  { withAnimation(.easeInOut(duration: 0.35)) { showStep2 = true } }
-        at(5.8)  { withAnimation(.easeOut(duration: 0.4)) { showCTA = true } }
+        // Header
+        at(0.2) { showHeader = true }
+
+        // Viewfinder appears
+        at(0.5) { showViewfinder = true }
+
+        // Scan line sweeps
+        at(0.9) {
+            scanLineVisible = true
+            scanLineOffset = -80
+            withAnimation(.easeInOut(duration: 1.4)) { scanLineOffset = 80 }
+        }
+        // Second sweep
+        at(2.4) {
+            scanLineOffset = -80
+            withAnimation(.easeInOut(duration: 1.2)) { scanLineOffset = 80 }
+        }
+
+        // Corners start glowing — issue detected
+        at(1.8) { withAnimation(.easeInOut(duration: 0.4)) { cornersGlow = true } }
+
+        // Detection bounding box pops in
+        at(2.1) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.65)) {
+                showDetectionBox = true
+            }
+            detectionPulse = true
+        }
+
+        // Transition: viewfinder → analyzing
+        at(3.8) {
+            withAnimation(.easeInOut(duration: 0.35)) {
+                showAnalyzing = true
+                scanLineVisible = false
+            }
+        }
+
+        // Analyzing checklist
+        at(4.1)  { withAnimation { analyzePhase = 0 }; analyzeProgress = 0.2 }
+        at(4.9)  { withAnimation { analyzePhase = 1 }; analyzeProgress = 0.55 }
+        at(5.7)  { withAnimation { analyzePhase = 2 }; analyzeProgress = 0.9 }
+        at(6.3)  { withAnimation { analyzePhase = 3 }; analyzeProgress = 1.0 }
+
+        // Transition: analyzing → guide
+        at(6.8) {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.8)) {
+                showGuide = true
+                showAnalyzing = false
+            }
+        }
+        at(7.3) { confidence = 0.94 }
+        at(7.8) { withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) { step1Visible = true } }
+        at(8.6) { markCompletePulse = true }
+        at(8.78) { markCompletePulse = false }
+        at(8.9) { withAnimation(.spring(response: 0.4, dampingFraction: 0.65)) { step1Complete = true } }
+        at(7.5) { withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showTools = true } }
+        at(9.5) { nextPulse = true }
+        at(9.68) { nextPulse = false }
+        at(9.8) { withAnimation(.easeInOut(duration: 0.35)) { showStep2 = true } }
+        at(10.3) { withAnimation(.easeOut(duration: 0.4)) { showCTA = true }; requestReview() }
     }
 
     private func at(_ delay: Double, action: @escaping () -> Void) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
     }
+}
 
-    private func tapButton() {
-        buttonPressed = true
-        rippleScale   = 0.4
-        rippleOpacity = 0.7
-        withAnimation(.easeOut(duration: 0.65)) {
-            rippleScale   = 2.4
-            rippleOpacity = 0
+// MARK: - Viewfinder Corner Brackets
+
+private struct ViewfinderCorners: View {
+    let glowing: Bool
+    private let size: CGFloat = 22
+    private let thickness: CGFloat = 3
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            let pad: CGFloat = 18
+            let color: Color = glowing ? Color.brand : Color.white.opacity(0.55)
+
+            ZStack {
+                // Top-left
+                cornerBracket(rotation: 0, color: color)
+                    .position(x: pad + size / 2, y: pad + size / 2)
+
+                // Top-right
+                cornerBracket(rotation: 90, color: color)
+                    .position(x: w - pad - size / 2, y: pad + size / 2)
+
+                // Bottom-left
+                cornerBracket(rotation: 270, color: color)
+                    .position(x: pad + size / 2, y: h - pad - size / 2)
+
+                // Bottom-right
+                cornerBracket(rotation: 180, color: color)
+                    .position(x: w - pad - size / 2, y: h - pad - size / 2)
+            }
+            .animation(.easeInOut(duration: 0.4), value: glowing)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-            buttonPressed = false
+    }
+
+    private func cornerBracket(rotation: Double, color: Color) -> some View {
+        Path { p in
+            p.move(to:    CGPoint(x: 0,    y: size))
+            p.addLine(to: CGPoint(x: 0,    y: 0))
+            p.addLine(to: CGPoint(x: size, y: 0))
         }
+        .stroke(color, style: StrokeStyle(lineWidth: thickness, lineCap: .round))
+        .frame(width: size, height: size)
+        .rotationEffect(.degrees(rotation))
     }
 }
