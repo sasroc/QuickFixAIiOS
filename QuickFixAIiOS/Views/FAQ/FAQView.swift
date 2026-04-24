@@ -56,7 +56,13 @@ struct FAQView: View {
         ),
         (
             "What's the difference between plans?",
-            "Starter ($2/mo): 10 repairs/month, GPT-4.1 Nano, 10 saved repairs.\nPro ($10/mo): 25 repairs/month, GPT-4o Mini, 50 saved repairs.\nPremium ($20/mo): 100 repairs/month, GPT-4o, unlimited history."
+            {
+                let lines = AppConfig.plans.map { p in
+                    let history = p.historyCap.map { "\($0) saved repairs" } ?? "unlimited history"
+                    return "\(p.displayName) ($\(Int(p.monthlyPrice))/mo): \(p.credits) repairs/month, \(p.aiModel), \(history)."
+                }
+                return lines.joined(separator: "\n")
+            }()
         ),
         (
             "What is the refund policy?",

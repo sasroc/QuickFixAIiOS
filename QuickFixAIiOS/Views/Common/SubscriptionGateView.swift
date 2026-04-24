@@ -44,7 +44,7 @@ struct SubscriptionGateView<Content: View>: View {
                 Button { showPricing = true } label: {
                     HStack {
                         Image(systemName: "star.fill")
-                        Text(userVM.profile?.isTrialEligible == true ? "Start 5-Day Free Trial" : "View Plans")
+                        Text(userVM.profile?.isTrialEligible == true ? "Start \(AppConfig.trialPeriodDays)-Day Free Trial" : "View Plans")
                     }
                     .primaryButtonStyle()
                 }

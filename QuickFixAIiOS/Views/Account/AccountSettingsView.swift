@@ -237,9 +237,10 @@ struct AccountSettingsView: View {
         }
     }
 
+    @ViewBuilder
     private var securitySection: some View {
-        Section("Security") {
-            if !isGoogleUser && !isAppleUser {
+        if !isGoogleUser && !isAppleUser {
+            Section("Security") {
                 Button {
                     Task {
                         guard let email = authVM.firebaseUser?.email else { return }

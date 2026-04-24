@@ -93,7 +93,7 @@ All calls go to `AppConfig.apiBaseURL`. Key endpoints:
 
 - `SubscriptionPlan`: `.none` (3 credits), `.starter` (10), `.pro` (25), `.premium` (100)
 - History caps: Starter=10, Pro=50, Premium=unlimited
-- Trial: `AppConfig.trialPeriodDays` (= 5) days, Starter plan, one-time per account (`wasOnTrial` prevents reuse). Always read this constant for UI copy — never hardcode the day count.
+- Trial: `AppConfig.trialPeriodDays` (= 7) days, Starter plan, one-time per account (`wasOnTrial` prevents reuse). Always read this constant for UI copy — never hardcode the day count.
 - Lifetime access: `hasLifetimeAccess: true` → behaves like Starter, immune to Stripe/Apple webhooks
 - Credits reset is handled server-side (Stripe webhook or Apple server notification); frontend reads live Firestore data
 - `paymentProvider` field (`"stripe"` | `"apple"`) on `UserProfile` determines which management UI to show; `UserViewModel.isAppleSubscriber` exposes this. Apple subscribers manage via App Store; Stripe subscribers see the portal.

@@ -9,6 +9,12 @@ struct PricingView: View {
 
     let startTrial: Bool
 
+    private var annualSavingsPercent: Int {
+        guard let plan = AppConfig.plans.first(where: { $0.annualPrice > 0 && $0.monthlyPrice > 0 }) else { return 0 }
+        let saved = (plan.monthlyPrice - plan.annualPrice) / plan.monthlyPrice
+        return Int((saved * 100).rounded())
+    }
+
     @State private var billing: PlanCardView.BillingType = .monthly
     @State private var checkoutURL: URL?   = nil   // kept for Stripe portal (web subscribers)
     @State private var showSafari          = false
@@ -28,7 +34,7 @@ struct PricingView: View {
                         if startTrial {
                             HStack(spacing: 6) {
                                 Image(systemName: "star.fill").foregroundStyle(.yellow)
-                                Text("5-Day Free Trial Available")
+                                Text("\(AppConfig.trialPeriodDays)-Day Free Trial Available")
                                     .font(.subheadline).fontWeight(.semibold)
                             }
                             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -45,7 +51,7 @@ struct PricingView: View {
 
                         Picker("Billing", selection: $billing) {
                             Text("Monthly").tag(PlanCardView.BillingType.monthly)
-                            Text("Annual (Save 28%)").tag(PlanCardView.BillingType.annual)
+                            Text("Annual (Save \(annualSavingsPercent)%)").tag(PlanCardView.BillingType.annual)
                         }
                         .pickerStyle(.segmented)
                     }
@@ -204,7 +210,7 @@ struct PaymentSuccessView: View {
                     .font(.title).fontWeight(.bold)
 
                 Text(userVM.profile?.isOnTrial == true
-                     ? "Enjoy 5 days of QuickFix AI Starter, on us."
+                     ? "Enjoy \(AppConfig.trialPeriodDays) days of QuickFix AI Starter, on us."
                      : "Welcome to QuickFix AI \(userVM.profile?.plan.displayName ?? "")!")
                     .font(.subheadline).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
