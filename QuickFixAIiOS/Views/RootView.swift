@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct RootView: View {
-    @Environment(AuthViewModel.self)  private var authVM
-    @Environment(UserViewModel.self)  private var userVM
+    @Environment(AuthViewModel.self)       private var authVM
+    @Environment(UserViewModel.self)       private var userVM
+    @Environment(RevenueCatService.self)   private var revenueCatService
 
     @State private var paymentSucceeded = false
 
@@ -45,6 +46,9 @@ struct RootView: View {
             PostAuthOnboardingView()
                 .transition(.opacity)
 
+        } else if revenueCatService.paywallVariant == .treatment {
+            PaywallVariantBView()
+                .transition(.opacity)
         } else {
             PaywallView()
                 .transition(.opacity)

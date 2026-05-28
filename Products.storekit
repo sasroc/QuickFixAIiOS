@@ -14,7 +14,21 @@
 
   ],
   "products" : [
-
+    {
+      "displayPrice" : "49.99",
+      "familyShareable" : false,
+      "internalID" : "6759681200",
+      "localizations" : [
+        {
+          "description" : "Unlimited AI repairs forever",
+          "displayName" : "Pro Lifetime",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.quickfixai.pro.lifetime",
+      "referenceName" : "Pro Lifetime",
+      "type" : "NonConsumable"
+    }
   ],
   "settings" : {
     "_applicationInternalID" : "6759504103",
@@ -48,150 +62,10 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "179.99",
-          "familyShareable" : false,
-          "groupNumber" : 6,
-          "internalID" : "6759681098",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "100 AI repair guides/month, billed annually",
-              "displayName" : "Premium Annually",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.quickfixai.premium.annual",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Premium Annual",
-          "subscriptionGroupID" : "21949915",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "19.99",
-          "familyShareable" : false,
-          "groupNumber" : 5,
-          "internalID" : "6759681063",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "100 AI repair guides/month + unlimited history",
-              "displayName" : "Premium Monthly",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.quickfixai.premium.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Premium Monthly",
-          "subscriptionGroupID" : "21949915",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "83.99",
-          "familyShareable" : false,
-          "groupNumber" : 4,
-          "internalID" : "6759681060",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "25 AI repair guides/month, billed annually ",
-              "displayName" : "Pro Anually",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.quickfixai.pro.annual",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Pro Annual",
-          "subscriptionGroupID" : "21949915",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "9.99",
-          "familyShareable" : false,
-          "groupNumber" : 3,
-          "internalID" : "6759681141",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "25 AI repair guides/month + priority support",
-              "displayName" : "Pro Monthly",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.quickfixai.pro.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Pro Monthly",
-          "subscriptionGroupID" : "21949915",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "23.99",
-          "familyShareable" : false,
-          "groupNumber" : 2,
-          "internalID" : "6759680972",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "10 AI repair guides/month, billed annually",
-              "displayName" : "Starter Annual",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.quickfixai.starter.annual",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Starter Annual",
-          "subscriptionGroupID" : "21949915",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : [
-
-          ]
-        },
-        {
-          "adHocOffers" : [
-
-          ],
-          "codeOffers" : [
-
-          ],
-          "displayPrice" : "1.99",
+          "displayPrice" : "4.99",
           "familyShareable" : false,
           "groupNumber" : 1,
-          "internalID" : "6759681113",
+          "internalID" : "6759681141",
           "introductoryOffer" : {
             "displayPrice" : "0.00",
             "offerIdentifier" : null,
@@ -201,14 +75,14 @@
           },
           "localizations" : [
             {
-              "description" : "10 AI repair guides/month + photo analysis",
-              "displayName" : "QuickFix AI Starter  ",
+              "description" : "10 AI repair guides/month + unlimited history",
+              "displayName" : "QuickFix AI Pro",
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.quickfixai.starter.monthly",
+          "productID" : "com.quickfixai.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Starter Monthly",
+          "referenceName" : "Pro Monthly",
           "subscriptionGroupID" : "21949915",
           "type" : "RecurringSubscription",
           "winbackOffers" : [

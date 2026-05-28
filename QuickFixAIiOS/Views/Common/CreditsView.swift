@@ -5,6 +5,7 @@ struct CreditsView: View {
     let total: Int
     let plan: SubscriptionPlan
 
+    private var isUnlimited: Bool { total >= UserProfile.unlimitedSentinel }
     private var remaining: Int { max(total - used, 0) }
     private var progress: Double { total > 0 ? Double(used) / Double(total) : 0 }
 
@@ -12,12 +13,12 @@ struct CreditsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 HStack(spacing: 5) {
-                    Image(systemName: "bolt.fill")
+                    Image(systemName: isUnlimited ? "infinity" : "bolt.fill")
                         .font(.caption)
-                        .foregroundStyle(remaining == 0 ? .red : Color.brand)
-                    Text("\(remaining) of \(total) credits remaining")
+                        .foregroundStyle((!isUnlimited && remaining == 0) ? .red : Color.brand)
+                    Text(isUnlimited ? "Unlimited repairs" : "\(remaining) of \(total) repairs remaining")
                         .font(.footnote).fontWeight(.semibold)
-                        .foregroundStyle(remaining == 0 ? .red : .primary)
+                        .foregroundStyle((!isUnlimited && remaining == 0) ? .red : .primary)
                 }
                 Spacer()
                 Text(plan.displayName)
@@ -35,23 +36,25 @@ struct CreditsView: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.brand.opacity(0.25), lineWidth: 1))
             }
 
-            // Custom gradient progress bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.inputBackground)
-                        .frame(height: 7)
-                    Capsule()
-                        .fill(
-                            remaining == 0
-                                ? LinearGradient(colors: [.red, .red], startPoint: .leading, endPoint: .trailing)
-                                : LinearGradient(colors: [Color.brandBlue, Color.brand], startPoint: .leading, endPoint: .trailing)
-                        )
-                        .frame(width: max(geo.size.width * progress, 0), height: 7)
-                        .animation(.easeInOut(duration: 0.5), value: progress)
+            if !isUnlimited {
+                // Custom gradient progress bar
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.inputBackground)
+                            .frame(height: 7)
+                        Capsule()
+                            .fill(
+                                remaining == 0
+                                    ? LinearGradient(colors: [.red, .red], startPoint: .leading, endPoint: .trailing)
+                                    : LinearGradient(colors: [Color.brandBlue, Color.brand], startPoint: .leading, endPoint: .trailing)
+                            )
+                            .frame(width: max(geo.size.width * progress, 0), height: 7)
+                            .animation(.easeInOut(duration: 0.5), value: progress)
+                    }
                 }
+                .frame(height: 7)
             }
-            .frame(height: 7)
         }
         .padding(12)
         .background(Color.cardBackground)

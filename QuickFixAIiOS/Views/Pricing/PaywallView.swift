@@ -5,14 +5,11 @@ struct PaywallView: View {
     @Environment(AuthViewModel.self)      private var authVM
     @Environment(RevenueCatService.self)  private var revenueCatService
 
-    @State private var isAnnual          = false
-    @State private var showAllPlans      = false
+    @State private var isLifetime       = false
     @State private var purchaseError: String? = nil
     @State private var showPurchaseError = false
 
-    private var starterPlan: AppConfig.PlanInfo? { AppConfig.plan(for: "starter") }
-    private var proPlan:     AppConfig.PlanInfo? { AppConfig.plan(for: "pro") }
-    private var premiumPlan: AppConfig.PlanInfo? { AppConfig.plan(for: "premium") }
+    private var plan: AppConfig.PlanInfo? { AppConfig.plans.first }
     private var isTrialEligible: Bool { userVM.profile?.isTrialEligible ?? true }
 
     var body: some View {
@@ -21,8 +18,8 @@ struct PaywallView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 32) {
-                    if isTrialEligible, let starter = starterPlan {
-                        trialContent(plan: starter)
+                    if isTrialEligible, let p = plan {
+                        trialContent(plan: p)
                     } else {
                         noTrialContent
                     }
@@ -95,7 +92,7 @@ struct PaywallView: View {
 
             // 4. Primary CTA
             Button {
-                purchaseViaApple(productId: AppConfig.StoreKitProducts.starterMonthly)
+                purchaseViaApple(productId: AppConfig.StoreKitProducts.proMonthly)
             } label: {
                 Text("Start My \(AppConfig.trialPeriodDays)-Day Free Trial")
                     .font(.system(size: 18, weight: .bold))
@@ -130,13 +127,14 @@ struct PaywallView: View {
             }
 
             // 6. Legal
-            Text("\(AppConfig.trialPeriodDays) days free, then $\(Int(plan.monthlyPrice))/month. Billed monthly. Cancel in App Store Settings anytime before Day \(AppConfig.trialPeriodDays + 1). Subscriptions auto-renew.")
+            Text(String(format: "\(AppConfig.trialPeriodDays) days free, then $%.2f/month. Billed monthly. Cancel in App Store Settings anytime before Day \(AppConfig.trialPeriodDays + 1). Subscriptions auto-renew.", plan.monthlyPrice))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
 
-            // 7. Other plans disclosure
-            otherPlansSection
+            // 7. Lifetime alternative
+            orDivider
+            planCard(plan: plan, accentColor: Color.brand, lifetime: true)
 
             // 8. Footer links
             footerLinks
@@ -165,7 +163,7 @@ struct PaywallView: View {
                 icon: "creditcard.fill",
                 iconColor: Color.secondary,
                 title: "Day \(AppConfig.trialPeriodDays + 1) — Billing Starts",
-                description: "$\(Int(plan.monthlyPrice))/month unless you cancel"
+                description: String(format: "$%.2f/month unless you cancel", plan.monthlyPrice)
             )
         }
         .padding(20)
@@ -213,7 +211,7 @@ struct PaywallView: View {
         }
     }
 
-    // MARK: - No Trial Flow (trial already used)
+    // MARK: - No Trial Flow
 
     private var noTrialContent: some View {
         VStack(spacing: 24) {
@@ -229,17 +227,8 @@ struct PaywallView: View {
 
             billingToggle
 
-            HStack(spacing: 12) {
-                if let pro = proPlan {
-                    planCard(plan: pro, accentColor: Color.brandBlue, badge: "Best Value")
-                }
-                if let premium = premiumPlan {
-                    planCard(plan: premium, accentColor: Color.brand, badge: nil)
-                }
-            }
-
-            if let starter = starterPlan {
-                starterFallbackRow(plan: starter)
+            if let p = plan {
+                planCard(plan: p, accentColor: Color.brandBlue)
             }
 
             VStack(spacing: 6) {
@@ -260,38 +249,19 @@ struct PaywallView: View {
         }
     }
 
-    // MARK: - Other Plans Section (trial flow)
+    // MARK: - OR Divider
 
-    private var otherPlansSection: some View {
-        VStack(spacing: 16) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.3)) { showAllPlans.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(showAllPlans ? "Hide other plans" : "Explore other plans")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Image(systemName: showAllPlans ? "chevron.up" : "chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if showAllPlans {
-                VStack(spacing: 14) {
-                    billingToggle
-
-                    HStack(spacing: 12) {
-                        if let pro = proPlan {
-                            planCard(plan: pro, accentColor: Color.brandBlue, badge: "Best Value")
-                        }
-                        if let premium = premiumPlan {
-                            planCard(plan: premium, accentColor: Color.brand, badge: nil)
-                        }
-                    }
-                }
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
+    private var orDivider: some View {
+        HStack(spacing: 16) {
+            Rectangle()
+                .fill(Color.secondary.opacity(0.2))
+                .frame(height: 1)
+            Text("OR")
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundStyle(.secondary)
+            Rectangle()
+                .fill(Color.secondary.opacity(0.2))
+                .frame(height: 1)
         }
     }
 
@@ -303,10 +273,10 @@ struct PaywallView: View {
                 .font(.subheadline.weight(.medium))
             Spacer()
             HStack(spacing: 8) {
-                Text("Annual")
+                Text("Lifetime")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(isAnnual ? Color.brand : .secondary)
-                Toggle("Annual", isOn: $isAnnual)
+                    .foregroundStyle(isLifetime ? Color.brand : .secondary)
+                Toggle("Lifetime", isOn: $isLifetime)
                     .labelsHidden()
                     .tint(Color.brand)
             }
@@ -316,40 +286,32 @@ struct PaywallView: View {
 
     // MARK: - Plan Card
 
-    private func planCard(plan: AppConfig.PlanInfo, accentColor: Color, badge: String?) -> some View {
-        let price     = isAnnual ? plan.annualPrice : plan.monthlyPrice
-        let productId = AppConfig.StoreKitProducts.productId(plan: plan.id, billing: isAnnual ? "annual" : "monthly")
+    private func planCard(plan: AppConfig.PlanInfo, accentColor: Color, lifetime: Bool? = nil) -> some View {
+        let showLifetime = lifetime ?? isLifetime
+        let price     = showLifetime ? plan.lifetimePrice : plan.monthlyPrice
+        let billing   = showLifetime ? "lifetime" : "monthly"
+        let productId = AppConfig.StoreKitProducts.productId(plan: plan.id, billing: billing)
+        let features  = showLifetime ? plan.lifetimeFeatures : plan.features
 
         return VStack(alignment: .leading, spacing: 12) {
-            if let badge {
-                Text(badge)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(accentColor)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(accentColor.opacity(0.12))
-                    .cornerRadius(10)
-            } else {
-                Color.clear.frame(height: 20)
-            }
-
             VStack(alignment: .leading, spacing: 2) {
                 Text(plan.displayName)
                     .font(.headline.weight(.bold))
-                Text(plan.credits == 100 ? "Premium AI" : plan.credits == 25 ? "Advanced AI" : "Standard AI")
+                Text(showLifetime ? "Lifetime Access" : "Monthly Subscription")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(String(format: "$%.0f", price))
+                Text(String(format: "$%.2f", price))
                     .font(.title2.weight(.heavy))
                     .foregroundStyle(accentColor)
-                Text("/mo")
+                Text(showLifetime ? " one-time" : "/mo")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if isAnnual, let savings = annualSavings(plan: plan) {
+            if showLifetime, let savings = lifetimeSavings(plan: plan) {
                 Text(savings)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.success)
@@ -358,7 +320,7 @@ struct PaywallView: View {
             Divider().opacity(0.5)
 
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(plan.features.prefix(4), id: \.self) { feature in
+                ForEach(features.prefix(5), id: \.self) { feature in
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Color.success)
@@ -371,12 +333,10 @@ struct PaywallView: View {
                 }
             }
 
-            Spacer()
-
             Button {
                 purchaseViaApple(productId: productId)
             } label: {
-                Text("Choose \(plan.displayName)")
+                Text(showLifetime ? "Get Lifetime Access" : "Subscribe Monthly")
                     .font(.footnote.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
@@ -395,42 +355,6 @@ struct PaywallView: View {
                 .stroke(accentColor.opacity(0.3), lineWidth: 1.5)
         )
         .shadow(color: accentColor.opacity(0.08), radius: 8, y: 3)
-    }
-
-    // MARK: - Starter Fallback Row
-
-    private func starterFallbackRow(plan: AppConfig.PlanInfo) -> some View {
-        let price     = isAnnual ? plan.annualPrice : plan.monthlyPrice
-        let productId = AppConfig.StoreKitProducts.productId(plan: "starter", billing: isAnnual ? "annual" : "monthly")
-
-        return HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Starter Plan")
-                    .font(.subheadline.weight(.semibold))
-                Text(String(format: "$%.0f / month", price))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button {
-                purchaseViaApple(productId: productId)
-            } label: {
-                Text("Get Starter")
-                    .font(.footnote.weight(.semibold))
-                    .padding(.horizontal, 18).padding(.vertical, 9)
-                    .background(Color.brand)
-                    .foregroundStyle(.white)
-                    .cornerRadius(10)
-            }
-            .disabled(revenueCatService.purchaseInProgress)
-        }
-        .padding(16)
-        .background(Color.cardBackground)
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-        )
     }
 
     // MARK: - Footer
@@ -460,8 +384,8 @@ struct PaywallView: View {
         }
     }
 
-    private func annualSavings(plan: AppConfig.PlanInfo) -> String? {
-        let saved = (plan.monthlyPrice * 12) - plan.annualTotal
-        return saved > 0 ? String(format: "Save $%.0f/yr", saved) : nil
+    private func lifetimeSavings(plan: AppConfig.PlanInfo) -> String? {
+        let saved = (plan.monthlyPrice * 12) - plan.lifetimePrice
+        return saved > 0 ? String(format: "Save $%.2f vs. 1 year", saved) : nil
     }
 }

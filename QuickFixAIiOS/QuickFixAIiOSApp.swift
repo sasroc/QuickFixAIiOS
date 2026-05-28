@@ -66,6 +66,7 @@ struct QuickFixAIiOSApp: App {
                 // .task runs after applicationDidFinishLaunchingWithOptions, so it's safe.
                 .task {
                     authVM.startListening()
+                    await revenueCatService.fetchOfferings()
                 }
                 .onOpenURL { url in
                     GIDSignIn.sharedInstance.handle(url)
@@ -74,7 +75,12 @@ struct QuickFixAIiOSApp: App {
                     if let user {
                         // Log this Firebase UID into RevenueCat so purchase history
                         // is tied to the account across devices/reinstalls.
-                        Task { try? await Purchases.shared.logIn(user.uid) }
+                        Task {
+                            try? await Purchases.shared.logIn(user.uid)
+                            // Re-fetch offerings after login — RC may assign a
+                            // different experiment variant to the identified user.
+                            await revenueCatService.fetchOfferings()
+                        }
                         userVM.startListening(uid: user.uid)
                         historyVM.startListening()
                     } else {

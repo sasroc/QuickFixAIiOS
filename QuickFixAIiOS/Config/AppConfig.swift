@@ -14,24 +14,23 @@ enum AppConfig {
         static let proAccess = "pro_access"
     }
 
+    // MARK: - Experiments
+    enum Experiments {
+        /// RC offering ID for paywall variant B. Create this offering in the
+        /// RevenueCat dashboard and use it as the treatment in an Experiment.
+        static let paywallVariantBOfferingId = "paywall_v2"
+    }
+
     // MARK: - Stripe (web-based checkout, opened in Safari)
     static let stripeSuccessURL = "quickfixai://payment-success"
     static let stripeCancelURL  = "quickfixai://payment-cancel"
 
     // MARK: - StoreKit Product IDs
     enum StoreKitProducts {
-        static let starterMonthly  = "com.quickfixai.starter.monthly"
-        static let starterAnnual   = "com.quickfixai.starter.annual"
-        static let proMonthly      = "com.quickfixai.pro.monthly"
-        static let proAnnual       = "com.quickfixai.pro.annual"
-        static let premiumMonthly  = "com.quickfixai.premium.monthly"
-        static let premiumAnnual   = "com.quickfixai.premium.annual"
+        static let proMonthly  = "com.quickfixai.pro.monthly"
+        static let proLifetime = "com.quickfixai.pro.lifetime"
 
-        static let all: [String] = [
-            starterMonthly, starterAnnual,
-            proMonthly, proAnnual,
-            premiumMonthly, premiumAnnual,
-        ]
+        static let all: [String] = [proMonthly, proLifetime]
 
         /// Returns the product ID for a given plan + billing combination.
         static func productId(plan: String, billing: String) -> String {
@@ -44,64 +43,37 @@ enum AppConfig {
 
     // MARK: - Plans
     struct PlanInfo {
-        let id: String        // "starter" | "pro" | "premium"
+        let id: String
         let displayName: String
-        let credits: Int
-        let historyCap: Int?  // nil = unlimited
+        let credits: Int       // monthly credits
+        let historyCap: Int?   // nil = unlimited
         let monthlyPrice: Double
-        let annualPrice: Double   // per month
-        let annualTotal: Double
+        let lifetimePrice: Double
         let aiModel: String
         let features: [String]
+        let lifetimeFeatures: [String]
     }
 
     static let plans: [PlanInfo] = [
         PlanInfo(
-            id: "starter",
-            displayName: "Starter",
-            credits: 10,
-            historyCap: 10,
-            monthlyPrice: 2.00,
-            annualPrice: 2.00,
-            annualTotal: 24.00,
-            aiModel: "GPT-4.1 Nano",
-            features: [
-                "10 AI repairs / month",
-                "GPT-4.1 Nano model",
-                "10 saved repairs",
-                "Image analysis"
-            ]
-        ),
-        PlanInfo(
             id: "pro",
             displayName: "Pro",
-            credits: 25,
-            historyCap: 50,
-            monthlyPrice: 10.00,
-            annualPrice: 7.00,
-            annualTotal: 84.00,
+            credits: 10,
+            historyCap: nil,
+            monthlyPrice: 4.99,
+            lifetimePrice: 49.99,
             aiModel: "GPT-4o Mini",
             features: [
-                "25 AI repairs / month",
+                "10 AI repairs / month",
+                "Unlimited repair history",
                 "GPT-4o Mini model",
-                "50 saved repairs",
                 "Image analysis",
                 "Priority support"
-            ]
-        ),
-        PlanInfo(
-            id: "premium",
-            displayName: "Premium",
-            credits: 100,
-            historyCap: nil,
-            monthlyPrice: 20.00,
-            annualPrice: 15.00,
-            annualTotal: 180.00,
-            aiModel: "GPT-4o",
-            features: [
-                "100 AI repairs / month",
-                "GPT-4o model",
+            ],
+            lifetimeFeatures: [
+                "Unlimited AI repairs forever",
                 "Unlimited repair history",
+                "GPT-4o Mini model",
                 "Image analysis",
                 "Priority support"
             ]

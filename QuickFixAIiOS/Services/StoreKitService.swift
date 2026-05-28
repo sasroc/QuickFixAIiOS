@@ -2,6 +2,11 @@ import RevenueCat
 import FirebaseAuth
 import FirebaseFirestore
 
+enum PaywallVariant {
+    case control    // existing PaywallView  (RC offering: "default")
+    case treatment  // new PaywallVariantBView (RC offering: AppConfig.Experiments.paywallVariantBOfferingId)
+}
+
 @MainActor
 @Observable
 final class RevenueCatService {
@@ -10,6 +15,19 @@ final class RevenueCatService {
 
     var purchaseInProgress = false
     var purchaseError: String? = nil
+    var paywallVariant: PaywallVariant = .control
+
+    // MARK: - Offerings / Experiment
+
+    func fetchOfferings() async {
+        let offerings: Offerings? = await withCheckedContinuation { continuation in
+            Purchases.shared.getOfferings { offerings, _ in
+                continuation.resume(returning: offerings)
+            }
+        }
+        let currentId = offerings?.current?.identifier
+        paywallVariant = currentId == AppConfig.Experiments.paywallVariantBOfferingId ? .treatment : .control
+    }
 
     // MARK: - Purchase
 
@@ -68,7 +86,17 @@ final class RevenueCatService {
               let info = customerInfo,
               !info.entitlements.active.isEmpty else { return }
 
-        let activeProductId = productId ?? info.activeSubscriptions.first
+        // Lifetime purchases appear in nonSubscriptionTransactions, not activeSubscriptions
+        let activeProductId: String?
+        if let pid = productId {
+            activeProductId = pid
+        } else if let sub = info.activeSubscriptions.first {
+            activeProductId = sub
+        } else {
+            activeProductId = info.nonSubscriptionTransactions.last?.productIdentifier
+        }
+
+        let isLifetime = activeProductId?.contains("lifetime") == true
         let plan = Self.plan(from: activeProductId)
         let planInfo = plan.flatMap { AppConfig.plan(for: $0) }
         let entitlement = info.entitlements.active.values.first
@@ -80,7 +108,13 @@ final class RevenueCatService {
             "updatedAt": FieldValue.serverTimestamp()
         ]
         if let plan { data["plan"] = plan }
-        if let credits = planInfo?.credits { data["credits"] = credits }
+        if isLifetime {
+            data["hasLifetimeAccess"] = true
+            data["credits"] = UserProfile.unlimitedSentinel
+            data["billingInterval"] = "lifetime"
+        } else if let credits = planInfo?.credits {
+            data["credits"] = credits
+        }
         if isTrial {
             data["wasOnTrial"] = true
             if let exp = entitlement?.expirationDate {
@@ -100,9 +134,7 @@ final class RevenueCatService {
 
     private static func plan(from productId: String?) -> String? {
         guard let id = productId else { return nil }
-        if id.contains("starter") { return "starter" }
         if id.contains("pro") { return "pro" }
-        if id.contains("premium") { return "premium" }
         return nil
     }
 }

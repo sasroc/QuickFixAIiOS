@@ -9,12 +9,6 @@ struct PricingView: View {
 
     let startTrial: Bool
 
-    private var annualSavingsPercent: Int {
-        guard let plan = AppConfig.plans.first(where: { $0.annualPrice > 0 && $0.monthlyPrice > 0 }) else { return 0 }
-        let saved = (plan.monthlyPrice - plan.annualPrice) / plan.monthlyPrice
-        return Int((saved * 100).rounded())
-    }
-
     @State private var billing: PlanCardView.BillingType = .monthly
     @State private var checkoutURL: URL?   = nil   // kept for Stripe portal (web subscribers)
     @State private var showSafari          = false
@@ -51,7 +45,7 @@ struct PricingView: View {
 
                         Picker("Billing", selection: $billing) {
                             Text("Monthly").tag(PlanCardView.BillingType.monthly)
-                            Text("Annual (Save \(annualSavingsPercent)%)").tag(PlanCardView.BillingType.annual)
+                            Text("Lifetime").tag(PlanCardView.BillingType.lifetime)
                         }
                         .pickerStyle(.segmented)
                     }
@@ -167,7 +161,7 @@ struct PricingView: View {
 
     private func handlePlanSelection(planId: String) {
         guard authVM.isSignedIn else { showAuth = true; return }
-        let billingStr = billing == .monthly ? "monthly" : "annual"
+        let billingStr = billing == .monthly ? "monthly" : "lifetime"
         let productId  = AppConfig.StoreKitProducts.productId(plan: planId, billing: billingStr)
         Task {
             do {

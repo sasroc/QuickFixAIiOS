@@ -33,7 +33,7 @@ enum SubscriptionPlan: String, Codable, Equatable {
         switch self {
         case .none:    return 3
         case .starter: return 10
-        case .pro:     return 25
+        case .pro:     return 10
         case .premium: return 100
         }
     }
@@ -42,7 +42,7 @@ enum SubscriptionPlan: String, Codable, Equatable {
         switch self {
         case .none:    return nil
         case .starter: return 10
-        case .pro:     return 50
+        case .pro:     return nil
         case .premium: return nil
         }
     }
@@ -50,7 +50,8 @@ enum SubscriptionPlan: String, Codable, Equatable {
 
 enum BillingInterval: String, Codable {
     case monthly
-    case annual
+    case annual    // legacy — kept for backward compatibility with existing subscribers
+    case lifetime
 }
 
 // MARK: - UserProfile
@@ -94,8 +95,10 @@ struct UserProfile: Equatable {
         paymentProvider == "apple"
     }
 
+    static let unlimitedSentinel = 99999
+
     var totalCredits: Int {
-        hasLifetimeAccess ? SubscriptionPlan.starter.credits : plan.credits
+        hasLifetimeAccess ? UserProfile.unlimitedSentinel : plan.credits
     }
 
     // MARK: Init from Firestore data

@@ -6,22 +6,22 @@ struct PlanCardView: View {
     let isCurrentPlan: Bool
     let onSelect: () -> Void
 
-    enum BillingType { case monthly, annual }
-
-    private var price: Double {
-        billing == .monthly ? plan.monthlyPrice : plan.annualPrice
-    }
+    enum BillingType { case monthly, lifetime }
 
     private var priceLabel: String {
         billing == .monthly
             ? String(format: "$%.2f/mo", plan.monthlyPrice)
-            : String(format: "$%.2f/mo", plan.annualPrice)
+            : String(format: "$%.2f one-time", plan.lifetimePrice)
     }
 
-    private var annualSavings: String? {
-        guard billing == .annual else { return nil }
-        let saved = (plan.monthlyPrice * 12) - plan.annualTotal
-        return saved > 0 ? String(format: "Save $%.0f/yr", saved) : nil
+    private var lifetimeSavings: String? {
+        guard billing == .lifetime else { return nil }
+        let saved = (plan.monthlyPrice * 12) - plan.lifetimePrice
+        return saved > 0 ? String(format: "Save $%.2f vs. 1 year", saved) : nil
+    }
+
+    private var displayedFeatures: [String] {
+        billing == .lifetime ? plan.lifetimeFeatures : plan.features
     }
 
     private var isPro: Bool { plan.id == "pro" }
@@ -49,7 +49,7 @@ struct PlanCardView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(priceLabel)
                         .font(.title2).fontWeight(.heavy).foregroundStyle(Color.brand)
-                    if let savings = annualSavings {
+                    if let savings = lifetimeSavings {
                         Text(savings)
                             .font(.caption2)
                             .padding(.horizontal, 6).padding(.vertical, 2)
@@ -63,7 +63,7 @@ struct PlanCardView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(plan.features, id: \.self) { feature in
+                ForEach(displayedFeatures, id: \.self) { feature in
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Color.success)
@@ -75,7 +75,7 @@ struct PlanCardView: View {
             }
 
             Button(action: onSelect) {
-                Text(isCurrentPlan ? "Current Plan" : "Choose \(plan.displayName)")
+                Text(isCurrentPlan ? "Current Plan" : billing == .lifetime ? "Get Lifetime Access" : "Choose \(plan.displayName)")
                     .primaryButtonStyle(disabled: isCurrentPlan)
             }
             .disabled(isCurrentPlan)

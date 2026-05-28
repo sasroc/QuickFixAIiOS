@@ -100,3 +100,21 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.quickfixai.ios.tests
+
+schemes:
+  QuickFixAIiOS:
+    build:
+      targets:
+        QuickFixAIiOS: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - QuickFixAIiOSTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
