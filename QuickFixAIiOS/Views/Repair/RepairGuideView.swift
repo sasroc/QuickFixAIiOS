@@ -146,12 +146,35 @@ struct RepairGuideView: View {
                         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brand.opacity(0.3), lineWidth: 1))
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 32)
+
+                // Did this work? — the only path that can trigger a review request.
+                if !isHistorical {
+                    GuideFeedbackView()
+                        .padding(.horizontal)
+                }
+
+                Spacer(minLength: 32)
             }
             .padding(.top, 16)
         }
         .background(Color.appBackground)
     }
+
+    // MARK: - Previews
+
+    fileprivate static let previewGuide = RepairGuide(
+        userId: "preview",
+        title: "Fix a Leaky Kitchen Faucet",
+        steps: [
+            RepairStep(id: 0, description: "Shut off the water supply valves under the sink.", image: nil),
+            RepairStep(id: 1, description: "Remove the faucet handle and unscrew the cartridge.", image: nil)
+        ],
+        tools: ["Adjustable wrench", "Screwdriver"],
+        materials: ["Replacement cartridge", "Plumber's tape"],
+        estimatedTime: 30,
+        confidenceScore: 92,
+        timestamp: Date()
+    )
 
     // MARK: - Step Card
 
@@ -254,4 +277,94 @@ private struct ChecklistSection: View {
         .background(Color.cardBackground)
         .cornerRadius(10)
     }
+}
+
+// MARK: - Guide Feedback
+
+/// "Did this work?" confirmation shown at the end of a freshly generated guide.
+///
+/// A positive answer is the only trigger for the App Store review request, and it
+/// is handed straight to `ReviewRequestManager` — no gating state is read here.
+/// Never shown for historical guides, so the question is asked once per guide.
+private struct GuideFeedbackView: View {
+    @Environment(\.requestReview) private var requestReview
+
+    private enum Response { case worked, didNotWork }
+
+    @State private var response: Response? = nil
+
+    var body: some View {
+        VStack(spacing: 12) {
+            switch response {
+            case nil:
+                Text("Did this fix your problem?")
+                    .font(.subheadline).fontWeight(.semibold)
+
+                HStack(spacing: 12) {
+                    choiceButton(title: "This worked", icon: "hand.thumbsup.fill", tint: Color.success) {
+                        confirmWorked()
+                    }
+                    choiceButton(title: "Didn't work", icon: "hand.thumbsdown.fill", tint: Color.secondary) {
+                        withAnimation { response = .didNotWork }
+                    }
+                }
+
+            case .worked:
+                Label("Glad it worked!", systemImage: "checkmark.circle.fill")
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundStyle(Color.success)
+
+            case .didNotWork:
+                Label("Thanks for letting us know", systemImage: "hand.thumbsdown.fill")
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Text("Try a new scan with a photo or a bit more detail — it usually produces a more specific guide.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.cardBackground)
+        .cornerRadius(12)
+    }
+
+    private func confirmWorked() {
+        withAnimation { response = .worked }
+        ReviewRequestManager.shared.requestReviewIfAppropriate(using: requestReview)
+    }
+
+    private func choiceButton(
+        title: String,
+        icon: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.subheadline).fontWeight(.medium)
+                .foregroundStyle(tint)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(tint.opacity(0.12))
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(tint.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+#Preview("Light") {
+    NavigationStack {
+        RepairGuideView(guide: RepairGuideView.previewGuide, isHistorical: false)
+    }
+}
+
+#Preview("Dark") {
+    NavigationStack {
+        RepairGuideView(guide: RepairGuideView.previewGuide, isHistorical: false)
+    }
+    .preferredColorScheme(.dark)
 }
