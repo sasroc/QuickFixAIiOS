@@ -1,5 +1,4 @@
 import SwiftUI
-import StoreKit
 
 struct PostAuthOnboardingView: View {
     @Environment(AuthViewModel.self) private var authVM
@@ -690,8 +689,6 @@ private struct AhaDemoStepView: View {
     let repairType: String
     let onComplete: () -> Void
 
-    @Environment(\.requestReview) private var requestReview
-
     // ── Scan phase ──
     @State private var showHeader        = false
     @State private var showViewfinder    = false
@@ -1371,7 +1368,7 @@ private struct AhaDemoStepView: View {
         at(9.5) { nextPulse = true }
         at(9.68) { nextPulse = false }
         at(9.8) { withAnimation(.easeInOut(duration: 0.35)) { showStep2 = true } }
-        at(10.3) { withAnimation(.easeOut(duration: 0.4)) { showCTA = true }; requestReview() }
+        at(10.3) { withAnimation(.easeOut(duration: 0.4)) { showCTA = true } }
     }
 
     private func at(_ delay: Double, action: @escaping () -> Void) {
