@@ -5,6 +5,10 @@ struct PaywallVariantBView: View {
     @Environment(AuthViewModel.self)      private var authVM
     @Environment(RevenueCatService.self)  private var revenueCatService
 
+    /// Set when shown as a dismissable sheet (locked repair guide): the X
+    /// closes the sheet instead of signing out.
+    var onClose: (() -> Void)? = nil
+
     @State private var selectedBilling: BillingChoice = .lifetime
     @State private var purchaseError: String? = nil
     @State private var showPurchaseError = false
@@ -14,7 +18,7 @@ struct PaywallVariantBView: View {
     enum BillingChoice { case monthly, lifetime }
 
     private var plan: AppConfig.PlanInfo? { AppConfig.plans.first }
-    private var isTrialEligible: Bool { userVM.profile?.isTrialEligible ?? true }
+    private var isTrialEligible: Bool { userVM.profile?.canStartFreeTrial ?? AppConfig.offersFreeTrial }
 
     var body: some View {
         ZStack {
@@ -109,8 +113,10 @@ struct PaywallVariantBView: View {
                 )
             )
 
-            // X / sign-out button
-            Button { authVM.signOut() } label: {
+            // X: close the sheet, or sign out when this is the full-screen gate
+            Button {
+                if let onClose { onClose() } else { authVM.signOut() }
+            } label: {
                 ZStack {
                     Circle()
                         .fill(.white)
@@ -189,8 +195,8 @@ struct PaywallVariantBView: View {
         HStack(spacing: 12) {
             planOptionCard(
                 title: "Monthly",
-                line1: isTrialEligible ? "7-day free trial" : String(format: "$%.2f/mo", plan?.monthlyPrice ?? 4.99),
-                line2: isTrialEligible ? String(format: "$%.2f/mo after", plan?.monthlyPrice ?? 4.99) : nil,
+                line1: isTrialEligible ? "7-day free trial" : String(format: "$%.2f/mo", plan?.monthlyPrice ?? 9.99),
+                line2: isTrialEligible ? String(format: "$%.2f/mo after", plan?.monthlyPrice ?? 9.99) : nil,
                 badge: nil,
                 isSelected: selectedBilling == .monthly
             ) { selectedBilling = .monthly }
@@ -313,7 +319,7 @@ struct PaywallVariantBView: View {
     private var ctaSubtitle: String {
         if selectedBilling == .lifetime { return "One-time payment · No subscription" }
         return isTrialEligible
-            ? String(format: "Then $%.2f/mo · Cancel anytime", plan?.monthlyPrice ?? 4.99)
+            ? String(format: "Then $%.2f/mo · Cancel anytime", plan?.monthlyPrice ?? 9.99)
             : "Cancel anytime"
     }
 

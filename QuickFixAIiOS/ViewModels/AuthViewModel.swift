@@ -39,6 +39,24 @@ final class AuthViewModel {
                 self?.firebaseUser = user
             }
         }
+        Task { await validateRestoredSession() }
+    }
+
+    /// The session restored from the Keychain survives app reinstalls and can
+    /// outlive the account itself (deleted from another device or the Firebase
+    /// console). Ask the server once at launch and sign out if it's gone, so
+    /// the user isn't stuck in a signed-in state with no account behind it.
+    private func validateRestoredSession() async {
+        guard let user = Auth.auth().currentUser else { return }
+        do {
+            try await user.reload()
+        } catch let error as NSError {
+            let deadAccountCodes: [AuthErrorCode] = [.userNotFound, .userDisabled, .userTokenExpired, .invalidUserToken]
+            if let code = AuthErrorCode(rawValue: error.code), deadAccountCodes.contains(code) {
+                signOut()
+            }
+            // Anything else (e.g. offline) keeps the session.
+        }
     }
 
     deinit {

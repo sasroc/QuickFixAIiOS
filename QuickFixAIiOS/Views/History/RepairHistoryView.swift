@@ -3,10 +3,16 @@ import SwiftUI
 struct RepairHistoryView: View {
     @Environment(HistoryViewModel.self) private var historyVM
     @Environment(UserViewModel.self)    private var userVM
+    @Environment(RevenueCatService.self) private var revenueCatService
 
     @State private var deleteTarget: RepairGuide? = nil
     @State private var showDeleteAlert = false
     @State private var selected: RepairGuide? = nil
+    @State private var showUnlockPaywall = false
+
+    private var isPreview: Bool {
+        userVM.isInDiagnosisPreview(timing: revenueCatService.paywallTiming)
+    }
 
     var body: some View {
         NavigationStack {
@@ -43,7 +49,11 @@ struct RepairHistoryView: View {
         }
         .sheet(item: $selected) { guide in
             NavigationStack {
-                RepairGuideView(guide: guide, isHistorical: true)
+                RepairGuideView(
+                    guide: guide,
+                    isHistorical: true,
+                    onUnlock: isPreview ? { showUnlockPaywall = true } : nil
+                )
                     .navigationTitle("Repair Guide")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -52,6 +62,12 @@ struct RepairHistoryView: View {
                         }
                     }
             }
+            .sheet(isPresented: $showUnlockPaywall) {
+                UnlockPaywallSheet()
+            }
+        }
+        .onChange(of: userVM.hasActiveAccess) { _, hasAccess in
+            if hasAccess { showUnlockPaywall = false }
         }
     }
 

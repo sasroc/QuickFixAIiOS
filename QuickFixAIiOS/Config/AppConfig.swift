@@ -19,6 +19,11 @@ enum AppConfig {
         /// RC offering ID for paywall variant B. Create this offering in the
         /// RevenueCat dashboard and use it as the treatment in an Experiment.
         static let paywallVariantBOfferingId = "paywall_v2"
+
+        /// RC offering ID for the "paywall after first diagnosis" test. Users
+        /// assigned this offering get one free diagnosis before hitting the
+        /// paywall; the step-by-step fix stays locked until they subscribe.
+        static let paywallAfterDiagnosisOfferingId = "paywall_after_diagnosis"
     }
 
     // MARK: - Stripe (web-based checkout, opened in Safari)
@@ -39,6 +44,10 @@ enum AppConfig {
     }
 
     // MARK: - Trial
+    /// Must match App Store Connect: Pro Monthly currently has no introductory
+    /// offer, so all trial copy is hidden. Flip only after adding the offer
+    /// there (and to Products.storekit) — Apple applies it, not the app.
+    static let offersFreeTrial = false
     static let trialPeriodDays = 7
 
     // MARK: - Plans
@@ -60,7 +69,7 @@ enum AppConfig {
             displayName: "Pro",
             credits: 10,
             historyCap: nil,
-            monthlyPrice: 4.99,
+            monthlyPrice: 9.99,
             lifetimePrice: 49.99,
             aiModel: "GPT-4o Mini",
             features: [

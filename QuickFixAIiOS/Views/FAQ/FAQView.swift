@@ -33,7 +33,11 @@ struct FAQView: View {
         }
     }
 
-    private var faqs: [(question: String, answer: String)] {[
+    private var faqs: [(question: String, answer: String)] {
+        allFAQs.filter { AppConfig.offersFreeTrial || !$0.question.contains("free trial") }
+    }
+
+    private var allFAQs: [(question: String, answer: String)] {[
         (
             "How does the AI repair guidance work?",
             "Describe your home repair issue in plain language (or upload a photo) and our AI generates a step-by-step repair guide tailored to your specific problem, complete with tools, materials, and time estimates."

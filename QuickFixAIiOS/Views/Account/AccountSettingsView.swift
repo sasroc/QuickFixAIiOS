@@ -55,7 +55,7 @@ struct AccountSettingsView: View {
         }
         .background(Color.appBackground)
         .sheet(isPresented: $showPricing) {
-            PricingView(startTrial: profile?.isTrialEligible ?? false)
+            PricingView(startTrial: profile?.canStartFreeTrial ?? false)
         }
         .fullScreenCover(isPresented: $showSafari) {
             if let url = checkoutURL { SafariView(url: url).ignoresSafeArea() }

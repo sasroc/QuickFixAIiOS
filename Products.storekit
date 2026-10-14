@@ -62,17 +62,11 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "4.99",
+          "displayPrice" : "9.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "6759681141",
-          "introductoryOffer" : {
-            "displayPrice" : "0.00",
-            "offerIdentifier" : null,
-            "paymentMode" : "FreeTrial",
-            "periodCount" : 1,
-            "subscriptionPeriod" : "P1W"
-          },
+          "introductoryOffer" : null,
           "localizations" : [
             {
               "description" : "10 AI repair guides/month + unlimited history",

@@ -1,8 +1,7 @@
 import SwiftUI
-import GoogleSignIn
-import GoogleSignInSwift
-import AuthenticationServices
 
+/// Email + password sign-in / sign-up form, presented as a sheet from
+/// `AuthScreen`'s "Continue with Email". Apple and Google live on AuthScreen.
 struct AuthView: View {
     enum Mode { case signIn, signUp }
 
@@ -14,6 +13,9 @@ struct AuthView: View {
     init(initialMode: Mode = .signIn) {
         _isLogin = State(initialValue: initialMode == .signIn)
     }
+
+    private enum Field { case name, email, password, confirm }
+
     @State private var email          = ""
     @State private var password       = ""
     @State private var confirmPass    = ""
@@ -22,7 +24,9 @@ struct AuthView: View {
     @State private var agreedToTerms  = false
     @State private var showTerms      = false
     @State private var showPrivacy    = false
-    @State private var shakeError     = false
+    @State private var shakeCount     = 0
+    @State private var resetSentTo: String? = nil
+    @FocusState private var focused: Field?
 
     private var passwordsMatch: Bool? {
         guard isLogin || confirmPass.isEmpty else {
@@ -42,186 +46,28 @@ struct AuthView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
-                    // Header
-                    VStack(spacing: 8) {
-                        Image("AppLogo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 120, height: 80)
-                        Text(isLogin ? "Welcome Back" : "Create Account")
-                            .font(.title).fontWeight(.bold)
-                        Text(isLogin ? "Sign in to continue fixing things" : "Join thousands of homeowners")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    .padding(.top, 12)
-
-                    // Toggle
-                    Picker("Mode", selection: $isLogin) {
-                        Text("Sign In").tag(true)
-                        Text("Sign Up").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-
-                    // Form
-                    VStack(spacing: 14) {
-                        if !isLogin {
-                            TextField("Display Name (optional)", text: $displayName)
-                                .textContentType(.name)
-                                .textFieldStyle(.roundedBorder)
-                        }
-
-                        TextField("Email address", text: $email)
-                            .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-                            .textFieldStyle(.roundedBorder)
-
-                        // Password field
-                        HStack {
-                            Group {
-                                if showPassword {
-                                    TextField("Password", text: $password)
-                                } else {
-                                    SecureField("Password", text: $password)
-                                }
-                            }
-                            .textContentType(isLogin ? .password : .newPassword)
-
-                            Button {
-                                showPassword.toggle()
-                            } label: {
-                                Image(systemName: showPassword ? "eye.slash" : "eye")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .textFieldStyle(.roundedBorder)
-
-                        if !isLogin {
-                            HStack {
-                                SecureField("Confirm Password", text: $confirmPass)
-                                    .textContentType(.newPassword)
-
-                                if let match = passwordsMatch {
-                                    Image(systemName: match ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                        .foregroundStyle(match ? .green : .red)
-                                }
-                            }
-                            .textFieldStyle(.roundedBorder)
-
-                            // Terms checkbox
-                            HStack(alignment: .top, spacing: 8) {
-                                Button {
-                                    agreedToTerms.toggle()
-                                } label: {
-                                    Image(systemName: agreedToTerms ? "checkmark.square.fill" : "square")
-                                        .foregroundStyle(agreedToTerms ? Color.brand : Color.secondary)
-                                }
-
-                                Text("I agree to the ")
-                                    .font(.footnote)
-                                + Text("Terms of Service")
-                                    .font(.footnote).foregroundColor(.brand)
-                                + Text(" and ")
-                                    .font(.footnote)
-                                + Text("Privacy Policy")
-                                    .font(.footnote).foregroundColor(.brand)
-                            }
-                            .onTapGesture(count: 1, perform: {})   // allows sub-buttons to work
-                            .overlay(
-                                HStack {
-                                    Spacer().frame(width: 28)
-                                    HStack(spacing: 0) {
-                                        Color.clear
-                                            .frame(width: 100)
-                                            .contentShape(Rectangle())
-                                            .onTapGesture { showTerms = true }
-                                        Color.clear
-                                            .frame(width: 30)
-                                        Color.clear
-                                            .frame(width: 90)
-                                            .contentShape(Rectangle())
-                                            .onTapGesture { showPrivacy = true }
-                                        Spacer()
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    .padding(.horizontal)
-
-                    // Error
-                    if let error = authVM.errorMessage {
-                        Text(error)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                            .shake(trigger: shakeError)
-                    }
-
-                    // Submit button
-                    Button {
-                        Task { await submit() }
-                    } label: {
-                        if authVM.isLoading {
-                            ProgressView().tint(.white)
-                        } else {
-                            Text(isLogin ? "Sign In" : "Create Account")
-                        }
-                    }
-                    .primaryButtonStyle(disabled: !canSubmit || authVM.isLoading)
-                    .disabled(!canSubmit || authVM.isLoading)
-                    .padding(.horizontal)
-
-                    // Divider
-                    HStack {
-                        Rectangle().frame(height: 1).foregroundStyle(.quaternary)
-                        Text("or").font(.footnote).foregroundStyle(.secondary)
-                        Rectangle().frame(height: 1).foregroundStyle(.quaternary)
-                    }
-                    .padding(.horizontal)
-
-                    // Google Sign-In
-                    GoogleSignInCustomButton {
-                        Task { await authVM.signInWithGoogle() }
-                    }
-                    .padding(.horizontal)
-
-                    // Apple Sign-In
-                    SignInWithAppleButton(.continue) { request in
-                        authVM.prepareAppleSignInRequest(request)
-                    } onCompletion: { result in
-                        Task { await authVM.handleAppleSignInResult(result) }
-                    }
-                    .signInWithAppleButtonStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .cornerRadius(4)
-                    .disabled(authVM.isLoading)
-                    .padding(.horizontal)
-
-                    // Forgot password
-                    if isLogin {
-                        Button {
-                            Task { await forgotPassword() }
-                        } label: {
-                            Text("Forgot Password?")
-                                .font(.footnote)
-                                .foregroundStyle(Color.brand)
-                        }
-                    }
-
-                    Spacer(minLength: 40)
+                VStack(alignment: .leading, spacing: 24) {
+                    header
+                    modeToggle
+                    form
+                    messages
+                    submitButton
                 }
+                .padding(.horizontal, 24)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
+                .animation(.easeInOut(duration: 0.25), value: isLogin)
             }
-            .background(Color.appBackground)
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
+            .scrollDismissesKeyboard(.interactively)
+            .background(Color.cardBackground)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityLabel("Close")
                 }
             }
             .sheet(isPresented: $showTerms)   { TermsView() }
@@ -229,85 +75,283 @@ struct AuthView: View {
             .onChange(of: authVM.isSignedIn) { _, signedIn in
                 if signedIn { dismiss() }
             }
+            .onChange(of: isLogin) { _, _ in
+                authVM.errorMessage = nil
+                resetSentTo = nil
+            }
         }
+        .background(Color.cardBackground)
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(32)
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(isLogin ? "Welcome back" : "Create your account")
+                .font(.system(size: 30, weight: .bold))
+                .contentTransition(.opacity)
+            Text(isLogin ? "Sign in to pick up where you left off." : "It takes less than a minute.")
+                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+                .contentTransition(.opacity)
+        }
+    }
+
+    // MARK: - Mode Toggle
+
+    private var modeToggle: some View {
+        HStack(spacing: 4) {
+            toggleOption("Sign In", selected: isLogin) { isLogin = true }
+            toggleOption("Sign Up", selected: !isLogin) { isLogin = false }
+        }
+        .padding(4)
+        .background(Color.appBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func toggleOption(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(selected ? Color.primary : Color.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background {
+                    if selected {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.cardBackground)
+                            .shadow(color: .black.opacity(0.08), radius: 4, y: 1)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // MARK: - Form
+
+    private var form: some View {
+        VStack(spacing: 14) {
+            if !isLogin {
+                inputField(icon: "person", field: .name) {
+                    TextField("Name (optional)", text: $displayName)
+                        .textContentType(.name)
+                        .submitLabel(.next)
+                        .onSubmit { focused = .email }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            inputField(icon: "envelope", field: .email) {
+                TextField("Email address", text: $email)
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.next)
+                    .onSubmit { focused = .password }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                inputField(icon: "lock", field: .password) {
+                    Group {
+                        if showPassword {
+                            TextField("Password", text: $password)
+                        } else {
+                            SecureField("Password", text: $password)
+                        }
+                    }
+                    .textContentType(isLogin ? .password : .newPassword)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(isLogin ? .go : .next)
+                    .onSubmit {
+                        if isLogin { Task { await submit() } } else { focused = .confirm }
+                    }
+
+                    Button { showPassword.toggle() } label: {
+                        Image(systemName: showPassword ? "eye.slash" : "eye")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showPassword ? "Hide password" : "Show password")
+                }
+
+                if isLogin {
+                    HStack {
+                        Spacer()
+                        Button("Forgot password?") { Task { await forgotPassword() } }
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color.brand)
+                    }
+                } else {
+                    Text("At least 6 characters")
+                        .font(.footnote)
+                        .foregroundStyle(password.isEmpty || password.count >= 6 ? Color.secondary : Color.red)
+                        .padding(.leading, 4)
+                }
+            }
+
+            if !isLogin {
+                inputField(icon: "lock.rotation", field: .confirm) {
+                    SecureField("Confirm password", text: $confirmPass)
+                        .textContentType(.newPassword)
+                        .submitLabel(.done)
+                        .onSubmit { focused = nil }
+
+                    if let match = passwordsMatch {
+                        Image(systemName: match ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundStyle(match ? Color.success : Color.red)
+                            .accessibilityLabel(match ? "Passwords match" : "Passwords don't match")
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+
+                termsCheckbox
+                    .padding(.top, 4)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private func inputField<Content: View>(
+        icon: String,
+        field: Field,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(focused == field ? Color.brand : Color.secondary)
+                .frame(width: 20)
+            content()
+                .font(.system(size: 17))
+                .focused($focused, equals: field)
+        }
+        .padding(.horizontal, 16)
+        .frame(height: 54)
+        .background(Color.appBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(focused == field ? Color.brand : Color.secondary.opacity(0.18),
+                        lineWidth: focused == field ? 1.5 : 1)
+        )
+        .animation(.easeOut(duration: 0.15), value: focused)
+    }
+
+    private var termsCheckbox: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Button { agreedToTerms.toggle() } label: {
+                Image(systemName: agreedToTerms ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 20))
+                    .foregroundStyle(agreedToTerms ? Color.brand : Color.secondary)
+            }
+            .accessibilityLabel("Agree to the Terms of Service and Privacy Policy")
+            .accessibilityAddTraits(agreedToTerms ? .isSelected : [])
+
+            (Text("I agree to the ")
+                + Text("[Terms of Service](quickfixai-legal://terms)")
+                + Text(" and ")
+                + Text("[Privacy Policy](quickfixai-legal://privacy)"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .tint(Color.brand)
+                .environment(\.openURL, OpenURLAction { url in
+                    if url.host == "terms" { showTerms = true }
+                    if url.host == "privacy" { showPrivacy = true }
+                    return .handled
+                })
+        }
+    }
+
+    // MARK: - Messages
+
+    @ViewBuilder
+    private var messages: some View {
+        if let error = authVM.errorMessage {
+            Label(error, systemImage: "exclamationmark.circle.fill")
+                .font(.footnote)
+                .foregroundStyle(.red)
+                .modifier(ShakeEffect(animatableData: CGFloat(shakeCount)))
+        } else if let sentTo = resetSentTo {
+            Label("Password reset email sent to \(sentTo).", systemImage: "checkmark.circle.fill")
+                .font(.footnote)
+                .foregroundStyle(Color.success)
+        }
+    }
+
+    // MARK: - Submit
+
+    private var submitButton: some View {
+        let enabled = canSubmit && !authVM.isLoading
+        return Button {
+            Task { await submit() }
+        } label: {
+            ZStack {
+                if authVM.isLoading {
+                    ProgressView().tint(.white)
+                } else {
+                    Text(isLogin ? "Sign In" : "Create Account")
+                        .font(.system(size: 17, weight: .semibold))
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 54)
+            .background {
+                if enabled || authVM.isLoading {
+                    LinearGradient(colors: [Color.brandBlue, Color.brand], startPoint: .leading, endPoint: .trailing)
+                } else {
+                    Color.gray.opacity(0.35)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: enabled ? Color.brand.opacity(0.3) : .clear, radius: 10, y: 4)
+        }
+        .disabled(!enabled)
     }
 
     // MARK: - Actions
 
     private func submit() async {
+        guard canSubmit, !authVM.isLoading else { return }
+        focused = nil
+        resetSentTo = nil
         if isLogin {
             await authVM.signIn(email: email, password: password)
         } else {
             await authVM.signUp(email: email, password: password, displayName: displayName)
         }
-        if authVM.errorMessage != nil { shakeError = true; shakeError = false }
+        if authVM.errorMessage != nil {
+            withAnimation(.linear(duration: 0.4)) { shakeCount += 1 }
+        }
     }
 
     private func forgotPassword() async {
+        resetSentTo = nil
         guard !email.isEmpty else {
             authVM.errorMessage = "Enter your email address first."
+            focused = .email
             return
         }
-        let sent = await authVM.sendPasswordReset(to: email)
-        if sent {
+        if await authVM.sendPasswordReset(to: email) {
             authVM.errorMessage = nil
-            // Show a success alert
+            resetSentTo = email
         }
     }
 }
 
-// MARK: - Custom Google Sign-In button
+// MARK: - Shake
 
-/// Loads the Google G logo directly from the GoogleSignIn SDK bundle and renders
-/// a button that matches Google's branding while giving us precise layout control.
-private struct GoogleSignInCustomButton: View {
-    let action: () -> Void
+/// Horizontal shake; each increment of `animatableData` plays one shake.
+private struct ShakeEffect: GeometryEffect {
+    var animatableData: CGFloat
 
-    /// The same logo the SDK uses, loaded from its resource bundle.
-    private var googleLogo: Image? {
-        guard let bundle = googleSignInBundle(),
-              let url = bundle.url(forResource: "google", withExtension: "png"),
-              let uiImage = UIImage(contentsOfFile: url.path) else {
-            return nil
-        }
-        return Image(uiImage: uiImage)
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                if let logo = googleLogo {
-                    logo
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 20, height: 20)
-                        .offset(y: -5)
-                }
-                Text("Sign in with Google")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Color(white: 0.25))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-            )
-            .shadow(color: .gray.opacity(0.4), radius: 2, x: 0, y: 2)
-        }
-    }
-
-    private func googleSignInBundle() -> Bundle? {
-        let bundleName = "GoogleSignIn_GoogleSignIn"
-        if let mainPath = Bundle.main.path(forResource: bundleName, ofType: "bundle") {
-            return Bundle(path: mainPath)
-        }
-        let classBundle = Bundle(for: GIDSignIn.self)
-        if let classPath = classBundle.path(forResource: bundleName, ofType: "bundle") {
-            return Bundle(path: classPath)
-        }
-        return nil
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: 8 * sin(animatableData * .pi * 4), y: 0))
     }
 }

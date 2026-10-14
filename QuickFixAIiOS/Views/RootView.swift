@@ -6,6 +6,9 @@ struct RootView: View {
     @Environment(RevenueCatService.self)   private var revenueCatService
 
     @State private var paymentSucceeded = false
+    #if DEBUG
+    @State private var showDebugMenu = false
+    #endif
 
     var body: some View {
         ZStack {
@@ -26,6 +29,24 @@ struct RootView: View {
             DisplayNameModalView()
                 .environment(authVM)
         }
+        #if DEBUG
+        .onShake { showDebugMenu = true }
+        .sheet(isPresented: $showDebugMenu) {
+            DebugMenuView()
+        }
+        #endif
+    }
+
+    private var hasCompletedOnboarding: Bool {
+        userVM.profile?.hasCompletedOnboarding ?? false
+    }
+
+    /// Subscribers, plus onboarded users in the paywall-after-diagnosis test.
+    /// One branch for both so a purchase from the locked guide keeps the same
+    /// MainTabView (and the guide on screen) instead of rebuilding it.
+    private var showsMainApp: Bool {
+        userVM.hasActiveAccess
+            || (hasCompletedOnboarding && userVM.isInDiagnosisPreview(timing: revenueCatService.paywallTiming))
     }
 
     @ViewBuilder
@@ -38,11 +59,11 @@ struct RootView: View {
             profileLoadingView
                 .transition(.opacity)
 
-        } else if userVM.hasActiveAccess {
+        } else if showsMainApp {
             MainTabView()
                 .transition(.opacity)
 
-        } else if !(userVM.profile?.hasCompletedOnboarding ?? false) {
+        } else if !hasCompletedOnboarding {
             PostAuthOnboardingView()
                 .transition(.opacity)
 
