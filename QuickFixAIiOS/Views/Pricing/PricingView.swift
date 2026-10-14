@@ -52,7 +52,7 @@ struct PricingView: View {
                     .padding(.horizontal)
 
                     // Trial ineligibility notice
-                    if !startTrial && authVM.isSignedIn && userVM.profile?.wasOnTrial == true {
+                    if AppConfig.offersFreeTrial && !startTrial && authVM.isSignedIn && userVM.profile?.wasOnTrial == true {
                         HStack(spacing: 8) {
                             Image(systemName: "info.circle.fill").foregroundStyle(.orange)
                             Text("You've already used your free trial. Choose a plan below.")

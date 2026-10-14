@@ -5,6 +5,11 @@ struct RepairGuideView: View {
     let guide: RepairGuide
     let isHistorical: Bool
     var onBack: (() -> Void)? = nil
+    /// Set for users in the paywall-after-diagnosis preview: the steps are
+    /// blurred behind an unlock button that calls this.
+    var onUnlock: (() -> Void)? = nil
+
+    private var stepsLocked: Bool { onUnlock != nil }
 
     @State private var currentStepIndex = 0
     @State private var completedSteps   = Set<Int>()
@@ -48,34 +53,39 @@ struct RepairGuideView: View {
                     }
 
                     // Progress bar
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Progress").font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            Text("\(completedSteps.count)/\(guide.steps.count) steps")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.inputBackground)
-                                    .frame(height: 7)
-                                Capsule()
-                                    .fill(LinearGradient(
-                                        colors: [Color.brandBlue, Color.brand],
-                                        startPoint: .leading, endPoint: .trailing
-                                    ))
-                                    .frame(width: max(geo.size.width * progress, 0), height: 7)
-                                    .animation(.easeInOut, value: progress)
+                    if !stepsLocked {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Progress").font(.caption).foregroundStyle(.secondary)
+                                Spacer()
+                                Text("\(completedSteps.count)/\(guide.steps.count) steps")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule()
+                                        .fill(Color.inputBackground)
+                                        .frame(height: 7)
+                                    Capsule()
+                                        .fill(LinearGradient(
+                                            colors: [Color.brandBlue, Color.brand],
+                                            startPoint: .leading, endPoint: .trailing
+                                        ))
+                                        .frame(width: max(geo.size.width * progress, 0), height: 7)
+                                        .animation(.easeInOut, value: progress)
+                                }
+                            }
+                            .frame(height: 7)
                         }
-                        .frame(height: 7)
                     }
                 }
                 .padding(.horizontal)
 
                 // Step navigator
-                if !guide.steps.isEmpty {
+                if let unlock = onUnlock {
+                    lockedStepsCard(onUnlock: unlock)
+                        .padding(.horizontal)
+                } else if !guide.steps.isEmpty {
                     stepCard
                         .padding(.horizontal)
 
@@ -148,7 +158,7 @@ struct RepairGuideView: View {
                 .padding(.horizontal)
 
                 // Did this work? — the only path that can trigger a review request.
-                if !isHistorical {
+                if !isHistorical && !stepsLocked {
                     GuideFeedbackView()
                         .padding(.horizontal)
                 }
@@ -175,6 +185,54 @@ struct RepairGuideView: View {
         confidenceScore: 92,
         timestamp: Date()
     )
+
+    // MARK: - Locked Steps
+
+    /// The real step text, blurred, under an unlock button. Hidden from
+    /// VoiceOver so the blurred text can't be read aloud.
+    private func lockedStepsCard(onUnlock: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Your \(guide.steps.count)-step fix is ready", systemImage: "list.number")
+                .font(.headline)
+
+            ZStack {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(guide.steps.prefix(4)) { step in
+                        HStack(alignment: .top, spacing: 10) {
+                            Text("\(step.id + 1)")
+                                .font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(width: 26, height: 26)
+                                .background(Circle().fill(Color.brandBlue))
+                            Text(step.description)
+                                .font(.subheadline)
+                                .lineLimit(2)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .blur(radius: 7)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+
+                Button(action: onUnlock) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "lock.open.fill")
+                        Text("Unlock the Step-by-Step Fix")
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                    .background(Color.ctaGradient)
+                    .foregroundStyle(.white)
+                    .cornerRadius(12)
+                    .shadow(color: Color.brand.opacity(0.35), radius: 8, y: 4)
+                }
+            }
+        }
+        .padding()
+        .background(Color.cardBackground)
+        .cornerRadius(14)
+    }
 
     // MARK: - Step Card
 
@@ -359,6 +417,12 @@ private struct GuideFeedbackView: View {
 #Preview("Light") {
     NavigationStack {
         RepairGuideView(guide: RepairGuideView.previewGuide, isHistorical: false)
+    }
+}
+
+#Preview("Locked") {
+    NavigationStack {
+        RepairGuideView(guide: RepairGuideView.previewGuide, isHistorical: false, onUnlock: {})
     }
 }
 

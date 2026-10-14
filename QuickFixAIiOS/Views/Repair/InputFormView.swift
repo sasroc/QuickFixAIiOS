@@ -5,6 +5,8 @@ import AVFoundation
 
 struct InputFormView: View {
     @Environment(RepairViewModel.self) private var repairVM
+    @Environment(UserViewModel.self)   private var userVM
+    @Environment(RevenueCatService.self) private var revenueCatService
 
     @FocusState private var isFocused: Bool
     @State private var description    = ""
@@ -245,7 +247,7 @@ struct InputFormView: View {
 
                 // ── Submit (text/gallery path) ────────────────────────────
                 Button {
-                    Task { await repairVM.analyze(description: description, image: selectedImage) }
+                    Task { await runAnalysis(description: description, image: selectedImage) }
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "wand.and.stars")
@@ -283,7 +285,7 @@ struct InputFormView: View {
             // Auto-analyze when photo captured via Scan button
             if isScanMode, let image {
                 isScanMode = false
-                Task { await repairVM.analyze(description: "", image: image) }
+                Task { await runAnalysis(description: "", image: image) }
             }
         }
         .onChange(of: repairVM.currentGuide) { _, guide in
@@ -297,6 +299,18 @@ struct InputFormView: View {
             CameraPicker(image: $selectedImage)
                 .ignoresSafeArea()
         }
+    }
+
+    // MARK: - Analyze
+
+    /// Users in the paywall-after-diagnosis preview have 0 credits, so ask
+    /// the backend to use their free diagnosis instead.
+    private func runAnalysis(description: String, image: UIImage?) async {
+        await repairVM.analyze(
+            description: description,
+            image: image,
+            freeDiagnosis: userVM.isInDiagnosisPreview(timing: revenueCatService.paywallTiming)
+        )
     }
 
     // MARK: - Voice

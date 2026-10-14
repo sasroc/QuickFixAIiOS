@@ -80,6 +80,7 @@ struct UserProfile: Equatable {
     var userHomeType: String
     var userDIYLevel: String
     var userRepairType: String
+    var freeDiagnosisUsed: Bool              // "paywall after first diagnosis" test — set by the backend
 
     // MARK: Computed
 
@@ -91,8 +92,26 @@ struct UserProfile: Equatable {
         !wasOnTrial && !hasLifetimeAccess && subscriptionStatus != .active
     }
 
+    /// Show trial copy only when the store product actually has a free trial.
+    var canStartFreeTrial: Bool {
+        AppConfig.offersFreeTrial && isTrialEligible
+    }
+
+    /// Any past or present subscription, trial or lifetime purchase. Lapsed
+    /// subscribers end up `canceled` but keep `paymentProvider`.
+    var hasEverSubscribed: Bool {
+        wasOnTrial || hasLifetimeAccess || subscriptionStatus != .inactive
+            || paymentProvider != nil || stripeSubscriptionId != nil
+    }
+
     var isAppleSubscriber: Bool {
         paymentProvider == "apple"
+    }
+
+    /// The backend allows one free diagnosis per account (`freeDiagnosis: true`
+    /// on `/api/ai/analyze`); leftover credits from an old plan also count.
+    var canRunFreeDiagnosis: Bool {
+        !freeDiagnosisUsed || credits > 0
     }
 
     static let unlimitedSentinel = 99999
@@ -120,6 +139,7 @@ struct UserProfile: Equatable {
         self.userHomeType               = data["userHomeType"]  as? String ?? ""
         self.userDIYLevel               = data["userDIYLevel"]  as? String ?? ""
         self.userRepairType             = data["userRepairType"] as? String ?? ""
+        self.freeDiagnosisUsed          = data["freeDiagnosisUsed"] as? Bool ?? false
 
         self.subscriptionStatus = SubscriptionStatus(rawValue: data["subscriptionStatus"] as? String ?? "inactive") ?? .inactive
         self.plan               = SubscriptionPlan(rawValue: data["plan"] as? String ?? "none") ?? .none

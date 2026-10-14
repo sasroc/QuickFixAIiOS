@@ -17,7 +17,9 @@ final class RepairViewModel {
 
     // MARK: - Analyze
 
-    func analyze(description: String, image: UIImage?) async {
+    /// `freeDiagnosis` asks the backend to spend the account's one free
+    /// diagnosis (paywall-after-diagnosis test) when it has no credits.
+    func analyze(description: String, image: UIImage?, freeDiagnosis: Bool = false) async {
         let trimmed = description.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty || image != nil else {
             errorMessage = "Please scan an issue or describe the repair."
@@ -38,6 +40,9 @@ final class RepairViewModel {
 
         if let uid = Auth.auth().currentUser?.uid {
             body["uid"] = uid
+        }
+        if freeDiagnosis {
+            body["freeDiagnosis"] = true
         }
 
         var imageBase64: String? = nil

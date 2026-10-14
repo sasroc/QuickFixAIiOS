@@ -22,6 +22,14 @@ final class UserViewModel {
     var isAdmin: Bool            { profile?.isAdmin ?? false }
     var isAppleSubscriber: Bool  { profile?.isAppleSubscriber ?? false }
 
+    /// True for a non-subscriber in the "paywall after first diagnosis" test:
+    /// they get into the app, can run one diagnosis, and see the steps locked.
+    /// Limited to users who never subscribed so lapsed subscribers keep the hard paywall.
+    func isInDiagnosisPreview(timing: PaywallTiming) -> Bool {
+        guard timing == .afterFirstDiagnosis, let profile else { return false }
+        return !profile.hasEverSubscribed
+    }
+
     // MARK: - Start/stop listening to user document
 
     func startListening(uid: String) {

@@ -5,22 +5,25 @@ struct SubscriptionGateView<Content: View>: View {
     @Environment(UserViewModel.self) private var userVM
     @State private var showPricing = false
 
+    /// Lets non-subscribers through (paywall-after-diagnosis test preview).
+    let previewAccess: Bool
     let content: () -> Content
 
-    init(@ViewBuilder content: @escaping () -> Content) {
+    init(previewAccess: Bool = false, @ViewBuilder content: @escaping () -> Content) {
+        self.previewAccess = previewAccess
         self.content = content
     }
 
     var body: some View {
         Group {
-            if userVM.hasActiveAccess {
+            if userVM.hasActiveAccess || previewAccess {
                 content()
             } else {
                 lockedView
             }
         }
         .sheet(isPresented: $showPricing) {
-            PricingView(startTrial: userVM.profile?.isTrialEligible ?? false)
+            PricingView(startTrial: userVM.profile?.canStartFreeTrial ?? false)
         }
     }
 
@@ -44,7 +47,7 @@ struct SubscriptionGateView<Content: View>: View {
                 Button { showPricing = true } label: {
                     HStack {
                         Image(systemName: "star.fill")
-                        Text(userVM.profile?.isTrialEligible == true ? "Start \(AppConfig.trialPeriodDays)-Day Free Trial" : "View Plans")
+                        Text(userVM.profile?.canStartFreeTrial == true ? "Start \(AppConfig.trialPeriodDays)-Day Free Trial" : "View Plans")
                     }
                     .primaryButtonStyle()
                 }

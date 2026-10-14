@@ -686,8 +686,16 @@ private struct SummaryStepView: View {
 // MARK: - Aha Demo Step
 
 private struct AhaDemoStepView: View {
+    @Environment(UserViewModel.self)     private var userVM
+    @Environment(RevenueCatService.self) private var revenueCatService
+
     let repairType: String
     let onComplete: () -> Void
+
+    /// Paywall-after-diagnosis test: the next screen is the app, not the paywall.
+    private var goesToFreeDiagnosis: Bool {
+        userVM.isInDiagnosisPreview(timing: revenueCatService.paywallTiming)
+    }
 
     // ── Scan phase ──
     @State private var showHeader        = false
@@ -1286,7 +1294,7 @@ private struct AhaDemoStepView: View {
         VStack(spacing: 10) {
             Button(action: onComplete) {
                 HStack(spacing: 8) {
-                    Text("Unlock My Access")
+                    Text(goesToFreeDiagnosis ? "Try It Free" : "Unlock My Access")
                         .font(.system(size: 18, weight: .bold))
                     Image(systemName: "arrow.right")
                         .font(.system(size: 16, weight: .bold))
@@ -1299,7 +1307,11 @@ private struct AhaDemoStepView: View {
                 .shadow(color: .black.opacity(0.15), radius: 10, y: 5)
             }
 
-            Text("Start your \(AppConfig.trialPeriodDays)-day free trial on the next screen")
+            Text(goesToFreeDiagnosis
+                 ? "Your first diagnosis is on us"
+                 : AppConfig.offersFreeTrial
+                    ? "Start your \(AppConfig.trialPeriodDays)-day free trial on the next screen"
+                    : "Choose your plan on the next screen")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)

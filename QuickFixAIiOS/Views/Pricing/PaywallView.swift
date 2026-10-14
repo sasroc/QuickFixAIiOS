@@ -5,12 +5,16 @@ struct PaywallView: View {
     @Environment(AuthViewModel.self)      private var authVM
     @Environment(RevenueCatService.self)  private var revenueCatService
 
+    /// Presented from a locked repair guide (paywall-after-diagnosis test):
+    /// no trial offer and no sign-out, just the regular plans.
+    var isUnlockSheet = false
+
     @State private var isLifetime       = false
     @State private var purchaseError: String? = nil
     @State private var showPurchaseError = false
 
     private var plan: AppConfig.PlanInfo? { AppConfig.plans.first }
-    private var isTrialEligible: Bool { userVM.profile?.isTrialEligible ?? true }
+    private var isTrialEligible: Bool { !isUnlockSheet && (userVM.profile?.canStartFreeTrial ?? AppConfig.offersFreeTrial) }
 
     var body: some View {
         ZStack {
@@ -245,7 +249,9 @@ struct PaywallView: View {
                 .font(.subheadline)
             }
 
-            footerLinks
+            if !isUnlockSheet {
+                footerLinks
+            }
         }
     }
 

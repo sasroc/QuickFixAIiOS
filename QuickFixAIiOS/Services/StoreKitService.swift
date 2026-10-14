@@ -7,6 +7,12 @@ enum PaywallVariant {
     case treatment  // new PaywallVariantBView (RC offering: AppConfig.Experiments.paywallVariantBOfferingId)
 }
 
+/// When a non-subscriber first sees the paywall.
+enum PaywallTiming: String, CaseIterable {
+    case upfront              // hard paywall right after onboarding (RC offering: "default")
+    case afterFirstDiagnosis  // one free diagnosis, steps locked (RC offering: AppConfig.Experiments.paywallAfterDiagnosisOfferingId)
+}
+
 @MainActor
 @Observable
 final class RevenueCatService {
@@ -17,6 +23,27 @@ final class RevenueCatService {
     var purchaseError: String? = nil
     var paywallVariant: PaywallVariant = .control
 
+    /// Timing assigned by RevenueCat. Read `paywallTiming` instead, which also
+    /// honours the DEBUG override.
+    private(set) var assignedPaywallTiming: PaywallTiming = .upfront
+
+    #if DEBUG
+    private static let timingOverrideKey = "debug.paywallTimingOverride"
+
+    /// DEBUG-only override set from the debug menu (shake the device) or the
+    /// launch argument `-debug.paywallTimingOverride afterFirstDiagnosis`.
+    var debugPaywallTimingOverride: PaywallTiming? =
+        UserDefaults.standard.string(forKey: timingOverrideKey).flatMap(PaywallTiming.init(rawValue:)) {
+        didSet {
+            UserDefaults.standard.set(debugPaywallTimingOverride?.rawValue, forKey: Self.timingOverrideKey)
+        }
+    }
+
+    var paywallTiming: PaywallTiming { debugPaywallTimingOverride ?? assignedPaywallTiming }
+    #else
+    var paywallTiming: PaywallTiming { assignedPaywallTiming }
+    #endif
+
     // MARK: - Offerings / Experiment
 
     func fetchOfferings() async {
@@ -26,7 +53,15 @@ final class RevenueCatService {
             }
         }
         let currentId = offerings?.current?.identifier
-        paywallVariant = currentId == AppConfig.Experiments.paywallVariantBOfferingId ? .treatment : .control
+        // The after-diagnosis test reuses the paywall_v2 design (the current
+        // default) so the only difference between its arms is *when* it shows.
+        let variantBOfferings = [
+            AppConfig.Experiments.paywallVariantBOfferingId,
+            AppConfig.Experiments.paywallAfterDiagnosisOfferingId,
+        ]
+        paywallVariant = variantBOfferings.contains(currentId ?? "") ? .treatment : .control
+        assignedPaywallTiming = currentId == AppConfig.Experiments.paywallAfterDiagnosisOfferingId
+            ? .afterFirstDiagnosis : .upfront
     }
 
     // MARK: - Purchase
